@@ -17,6 +17,7 @@
   #include <GLUT/glut.h>
 #endif
 
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,15 +93,28 @@ void plot_pixel(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 //MODIFY THIS FUNCTION
 void draw_scene()
 {
-  //a simple test output
+
+  unsigned char framebuffer[WIDTH][HEIGHT][3];
+
+  for (unsigned int x = 0; x < WIDTH; ++x) {
+    for (unsigned int y = 0; y < HEIGHT; ++y) {
+      framebuffer[x][y][0] = 127;
+      framebuffer[x][y][1] = 127;
+      framebuffer[x][y][2] = 127;
+    }
+  }
+
   for(unsigned int x=0; x<WIDTH; x++)
   {
     glPointSize(2.0);  
     glBegin(GL_POINTS);
+
     for(unsigned int y=0; y<HEIGHT; y++)
     {
-      plot_pixel(x, y, x % 256, y % 256, (x+y) % 256);
+      plot_pixel(x, y, framebuffer[x][y][0], framebuffer[x][y][1], framebuffer[x][y][2]);
     }
+
+
     glEnd();
     glFlush();
   }
