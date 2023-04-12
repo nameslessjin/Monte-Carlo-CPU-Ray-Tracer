@@ -17,6 +17,9 @@
   #include <GLUT/glut.h>
 #endif
 
+#include <glm/glm.hpp>
+#include <glm/gtx/string_cast.hpp>
+#include <cmath>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +48,8 @@ int mode = MODE_DISPLAY;
 
 //the field of view of the camera
 #define fov 60.0
+
+#define DEG_TO_RAD(degrees) (degrees * M_PI / 180.0);
 
 unsigned char buffer[HEIGHT][WIDTH][3];
 
@@ -77,6 +82,64 @@ struct Light
   double color[3];
 };
 
+struct Ray {
+  glm::vec3 dir;
+  float camera_pos[3] {0, 0, 0};
+
+  void generate_ray(int x, int y) {
+    float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+    float fov_rad = DEG_TO_RAD(fov);
+    float half_fov_tan = std::tan(fov_rad * 0.5f);
+
+      // convert pixel coordinates to normalized device coordinates (NDC)
+      float ndcX = (2.0f * (x + 0.5f) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float ndcY = (1.0f - 2.0f * (y + 0.5f) / (HEIGHT * 1.0f)) * half_fov_tan;
+
+      glm::vec3 dirs (ndcX, ndcY, -1.0f);
+      dir = glm::normalize(dirs);
+  }
+
+  void check_sphere_intersection() {
+
+    float min_t = 0;
+    float intersection_index = -1;
+    for (int i = 0; i < num_spheres; ++i) {
+      Sphere &sphere = spheres[i];
+      float t = 0;
+
+      float x0_xc = camera_pos[0] - sphere.position[0];
+      float y0_yc = camera_pos[1] - sphere.position[1];
+      float z0_zc = camera_pos[2] - sphere.position[2];
+      float a = 1.0f;
+      float b = 2 * (dir[0] * x0_xc + y0_yc + z0_zc);
+      float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(sphere.radius, 2);
+      
+      float t0 = (-b + sqrt(pow(b, 2) - 4 * c)) / 2;
+      float t1 = (-b - sqrt(pow(b, 2) - 4 * c)) / 2;
+
+      t = t0;
+
+      if (t0 >= 0 && t1 >= 0) {
+        t = std::min(t0, t1);
+      } else if (t0 < 0 && t1 < 0) {
+        continue;
+      } else {
+        t = std::max(t0, t1);
+      }
+
+      if (t < min_t) {
+        min_t = t;
+        intersection_index = i;
+      }
+    }
+
+    
+
+  }
+
+};
+
+Ray rays[HEIGHT][WIDTH];
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
@@ -90,17 +153,31 @@ void plot_pixel_display(int x,int y,unsigned char r,unsigned char g,unsigned cha
 void plot_pixel_jpeg(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 
+void tracing() {
+
+  // generate rays for each pixels
+  for (unsigned int x = 0; x < WIDTH; ++x) {
+    for (unsigned int y = 0; y < HEIGHT; ++y) {
+
+      Ray &ray = rays[y][x];
+      ray.generate_ray(x, y);
+
+    }
+  }
+
+}
+
 //MODIFY THIS FUNCTION
 void draw_scene()
 {
 
-  unsigned char framebuffer[WIDTH][HEIGHT][3];
+  unsigned char framebuffer[HEIGHT][WIDTH][3];
 
   for (unsigned int x = 0; x < WIDTH; ++x) {
     for (unsigned int y = 0; y < HEIGHT; ++y) {
-      framebuffer[x][y][0] = 127;
-      framebuffer[x][y][1] = 127;
-      framebuffer[x][y][2] = 127;
+      framebuffer[y][x][0] = 127;
+      framebuffer[y][x][1] = 127;
+      framebuffer[y][x][2] = 127;
     }
   }
 
@@ -286,6 +363,7 @@ void idle()
   static int once=0;
   if(!once)
   {
+    tracing();
     draw_scene();
     if(mode == MODE_JPEG)
       save_jpg();
