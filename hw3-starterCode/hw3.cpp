@@ -86,7 +86,8 @@ struct Color {
   float r, g, b;
 
   Color() {r = 0; g = 0; b = 0;}
-  Color(float _r, float _g, float _b) {r = _r, g =_g; b = _b;}
+  Color(float _r, float _g, float _b) {r = _r; g =_g; b = _b;}
+  Color(glm::vec3 c) {r = c.r; g = c.g; b = c.b;}
 
   void clamp() {
     if (r > 1.0) r = 1.0;
@@ -146,54 +147,70 @@ struct Ray {
 
   }
 
-  bool check_single_sphere_intersection(Sphere &s, float &t, glm::vec3 &intersection) {
-
-      float x0_xc = pos.x - s.position[0];
-      float y0_yc = pos.y - s.position[1];
-      float z0_zc = pos.z - s.position[2];
-      float a = 1.0f;
-      float b = 2 * (dir[0] * x0_xc + dir[1] * y0_yc + dir[2] * z0_zc);
-      float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
-      float bc = pow(b, 2) - 4 * c;
-
-      if (bc < 0) return false;
-
-      float t0 = (-b + sqrt(bc)) / (2 * a);
-      float t1 = (-b - sqrt(bc)) / (2 * a);
-
-      if (t0 >= 0 && t1 >= 0) {
-        t = std::min(t0, t1);
-      } else if (t0 < 0 && t1 < 0) {
-        return false;
-      } else {
-        t = std::max(t0, t1);
-      }
-
-      intersection = pos + dir * t;
-
-      return true;
-  }
-
 };
 
 
 void clamp(float &f);
 Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection);
 Color check_spheres_intersection(Color &c, Ray &ray);
+bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection);
+bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection);
+glm::vec3 vec3(double *v3);
 
 void clamp(float &f) {
   if (f > 1.0) f = 1.0;
   else if (f < 0.0f) f = 0.0;
 }
 
+glm::vec3 vec3(double *v3) {
+  return glm::vec3(v3[0], v3[1], v3[2]);
+}
+
+bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection) {
+
+  glm::vec3 c0 = vec3(tri.v[0].position);
+  glm::vec3 c1 = vec3(tri.v[1].position);
+  glm::vec3 c2 = vec3(tri.v[2].position);
+
+  return true;
+}
+
+bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection) {
+
+    float x0_xc = r.pos.x - s.position[0];
+    float y0_yc = r.pos.y - s.position[1];
+    float z0_zc = r.pos.z - s.position[2];
+    float a = 1.0f;
+    float b = 2 * (r.dir[0] * x0_xc + r.dir[1] * y0_yc + r.dir[2] * z0_zc);
+    float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
+    float bc = pow(b, 2) - 4 * c;
+
+    if (bc < 0) return false;
+
+    float t0 = (-b + sqrt(bc)) / (2 * a);
+    float t1 = (-b - sqrt(bc)) / (2 * a);
+
+    if (t0 >= 0 && t1 >= 0) {
+      t = std::min(t0, t1);
+    } else if (t0 < 0 && t1 < 0) {
+      return false;
+    } else {
+      t = std::max(t0, t1);
+    }
+
+    intersection = r.pos + r.dir * t;
+
+    return true;
+}
+
 Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
 
     // diffuse
-    glm::vec3 l_pos(l.position[0], l.position[1], l.position[2]);
-    glm::vec3 s_pos(s.position[0], s.position[1], s.position[2]);
-    glm::vec3 l_color(l.color[0], l.color[1], l.color[2]);
-    glm::vec3 kd(s.color_diffuse[0], s.color_diffuse[1], s.color_diffuse[2]);
-    glm::vec3 ks(s.color_specular[0], s.color_specular[1], s.color_specular[2]);
+    glm::vec3 l_pos = vec3(l.position);
+    glm::vec3 s_pos = vec3(s.position);
+    glm::vec3 l_color = vec3(l.color);
+    glm::vec3 kd = vec3(s.color_diffuse);
+    glm::vec3 ks = vec3(s.color_specular);
     glm::vec3 l_dir = glm::normalize(l_pos - intersection);
     glm::vec3 n = glm::normalize(intersection - s_pos);
     float l_dot_n = glm::dot(l_dir, n);
@@ -208,7 +225,7 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
     
-    return Color (c.r, c.g, c.b); 
+    return Color (c); 
 }
 
 Color check_spheres_intersection(Color &c, Ray &ray) {
@@ -223,7 +240,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
 
     float tmp_t = -1.0f;
 
-    if (!ray.check_single_sphere_intersection(spheres[i], tmp_t, intersection)) continue;
+    if (!check_single_sphere_intersection(ray, spheres[i], tmp_t, intersection)) continue;
 
     // calculate the intersection in the smallest t
     if (tmp_t < t || intersection_index == -1) {
@@ -239,7 +256,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
 
       // create shadow ray
       Light &light = lights[i];
-      glm::vec3 l_pos(light.position[0], light.position[1], light.position[2]);
+      glm::vec3 l_pos = vec3(light.position);
       glm::vec3 shadow_ray_dir = l_pos - intersection;
       Ray shadow_ray(shadow_ray_dir, intersection);
       bool in_shadow = false;
@@ -251,7 +268,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
         float tmp_t = -1.0f;
         
         // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
-        if (shadow_ray.check_single_sphere_intersection(spheres[j], tmp_t, shadow_ray_intersection) && intersection_index != j) {
+        if (check_single_sphere_intersection(shadow_ray, spheres[j], tmp_t, shadow_ray_intersection) && intersection_index != j) {
           float intersection_to_light = glm::length(l_pos - intersection);
           float intersection_to_shadow_intersect = glm::length(shadow_ray_intersection - intersection);
 
@@ -299,10 +316,9 @@ void draw_scene()
     for(unsigned int y=0; y<HEIGHT; y++)
     {
       Color color = tracing(x, y);
-      // color += Color(0.2f, 0.2f, 0.2f); // add ambient light
+      color += Color(0.3f, 0.3f, 0.3f); // add ambient light
       plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
     }
-
 
     glEnd();
     glFlush();
