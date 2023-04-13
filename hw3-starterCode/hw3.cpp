@@ -161,8 +161,6 @@ struct Ray {
       float t0 = (-b + sqrt(bc)) / (2 * a);
       float t1 = (-b - sqrt(bc)) / (2 * a);
 
-      // std::cout << "t0: " << t0 << " t1: " << t1 << '\n';
-
       if (t0 >= 0 && t1 >= 0) {
         t = std::min(t0, t1);
       } else if (t0 < 0 && t1 < 0) {
@@ -172,7 +170,7 @@ struct Ray {
       }
 
       intersection = pos + dir * t;
-      
+
       return true;
   }
 
@@ -209,6 +207,7 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
     float specular = pow(r_dot_v, s.shininess);
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
+    
     return Color (c.r, c.g, c.b); 
 }
 
@@ -234,7 +233,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
     }
   }
   if (intersection_index != -1) {
-
+    color = Color();
     // check out each light source
     for (int i = 0; i < num_lights; ++i) {
 
@@ -278,7 +277,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
 Color tracing(int x, int y) {
 
   Ray ray;
-  Color color;
+  Color color(1.0f, 1.0f, 1.0f);
 
   ray.generate_ray(x, y);
   check_spheres_intersection(color, ray);
@@ -300,6 +299,7 @@ void draw_scene()
     for(unsigned int y=0; y<HEIGHT; y++)
     {
       Color color = tracing(x, y);
+      // color += Color(0.2f, 0.2f, 0.2f); // add ambient light
       plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
     }
 
