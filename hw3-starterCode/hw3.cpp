@@ -82,64 +82,30 @@ struct Light
   double color[3];
 };
 
-struct Ray {
-  glm::vec3 dir;
-  float camera_pos[3] {0, 0, 0};
+struct Color {
+  float r, g, b;
 
-  void generate_ray(int x, int y) {
-    float aspect_ratio = WIDTH * 1.0f / HEIGHT;
-    float fov_rad = DEG_TO_RAD(fov);
-    float half_fov_tan = std::tan(fov_rad * 0.5f);
+  Color() {r = 0; g = 0; b = 0;}
+  Color(float _r, float _g, float _b) {r = _r, g =_g; b = _b;}
 
-      // convert pixel coordinates to normalized device coordinates (NDC)
-      float ndcX = (2.0f * (x + 0.5f) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
-      float ndcY = (1.0f - 2.0f * (y + 0.5f) / (HEIGHT * 1.0f)) * half_fov_tan;
+  Color &clamp() {
+    if (r > 1.0) r = 1.0;
+    if (r < 0.0) r = 0.0;
+    if (g > 1.0) g = 1.0;
+    if (g < 0.0) g = 0.0;
+    if (b > 1.0) b = 1.0;
+    if (b < 0.0) b = 0.0;
 
-      glm::vec3 dirs (ndcX, ndcY, -1.0f);
-      dir = glm::normalize(dirs);
+    return *this;
   }
 
-  void check_sphere_intersection() {
-
-    float min_t = 0;
-    float intersection_index = -1;
-    for (int i = 0; i < num_spheres; ++i) {
-      Sphere &sphere = spheres[i];
-      float t = 0;
-
-      float x0_xc = camera_pos[0] - sphere.position[0];
-      float y0_yc = camera_pos[1] - sphere.position[1];
-      float z0_zc = camera_pos[2] - sphere.position[2];
-      float a = 1.0f;
-      float b = 2 * (dir[0] * x0_xc + y0_yc + z0_zc);
-      float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(sphere.radius, 2);
-      
-      float t0 = (-b + sqrt(pow(b, 2) - 4 * c)) / 2;
-      float t1 = (-b - sqrt(pow(b, 2) - 4 * c)) / 2;
-
-      t = t0;
-
-      if (t0 >= 0 && t1 >= 0) {
-        t = std::min(t0, t1);
-      } else if (t0 < 0 && t1 < 0) {
-        continue;
-      } else {
-        t = std::max(t0, t1);
-      }
-
-      if (t < min_t) {
-        min_t = t;
-        intersection_index = i;
-      }
-    }
-
-    
-
+  Color &operator+(Color &c) {return Color(c.r + r, c.g + g, c.b + b).clamp();}
+  Color &operator+=(Color const &c) {return Color(c.r + r, c.g + g, c.b + b).clamp();}
+  void print() {
+    std::cout << "r: " << r << " b: " << b << " g: " << g << '\n';
   }
-
 };
 
-Ray rays[HEIGHT][WIDTH];
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
@@ -153,33 +119,172 @@ void plot_pixel_display(int x,int y,unsigned char r,unsigned char g,unsigned cha
 void plot_pixel_jpeg(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 
-void tracing() {
 
-  // generate rays for each pixels
-  for (unsigned int x = 0; x < WIDTH; ++x) {
-    for (unsigned int y = 0; y < HEIGHT; ++y) {
 
-      Ray &ray = rays[y][x];
-      ray.generate_ray(x, y);
+struct Ray {
+  glm::vec3 dir;
+  glm::vec3 pos;
 
+  Ray() {dir = glm::vec3(0,0,0);}
+  Ray(glm::vec3 _dir, glm::vec3 _pos) { dir = _dir; pos = _pos;}
+
+  void generate_ray(int x, int y) {
+    float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+    float fov_rad = DEG_TO_RAD(fov);
+    float half_fov_tan = std::tan(fov_rad * 0.5f);
+
+    // convert pixel coordinates to normalized device coordinates (NDC)
+    float ndcX = (2.0f * (x + 0.5f) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+    float ndcY = (1.0f - 2.0f * (y + 0.5f) / (HEIGHT * 1.0f)) * half_fov_tan;
+
+    glm::vec3 dirs (ndcX, ndcY, -1.0f);
+    dir = glm::normalize(dirs);
+
+  }
+
+  bool check_single_sphere_intersection(Sphere &s, float &t, glm::vec3 &intersection) {
+
+      float x0_xc = pos.x - s.position[0];
+      float y0_yc = pos.y - s.position[1];
+      float z0_zc = pos.z - s.position[2];
+      float a = 1.0f;
+      float b = 2 * (dir[0] * x0_xc + y0_yc + z0_zc);
+      float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
+
+      if (pow(b, 2) - 4 * c < 0) return false;
+
+      float t0 = (-b + sqrt(pow(b, 2) - 4 * c)) / 2;
+      float t1 = (-b - sqrt(pow(b, 2) - 4 * c)) / 2;
+
+      if (t0 >= 0 && t1 >= 0) {
+        t = std::min(t0, t1);
+      } else if (t0 < 0 && t1 < 0) {
+        return false;
+      } else {
+        t = std::max(t0, t1);
+      }
+
+      intersection = pos + dir * t;
+
+
+      return true;
+  }
+
+};
+
+
+void clamp(float &f);
+Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection);
+Color check_spheres_intersection(Color &c, Ray &ray);
+
+void clamp(float &f) {
+  if (f > 1.0) f = 1.0;
+  else if (f < 0.0f) f = 0.0;
+}
+
+Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
+
+    // diffuse
+    glm::vec3 l_pos(l.position[0], l.position[1], l.position[2]);
+    glm::vec3 s_pos(s.position[0], s.position[1], s.position[2]);
+    glm::vec3 l_color(l.color[0], l.color[1], l.color[2]);
+    glm::vec3 kd(s.color_diffuse[0], s.color_diffuse[1], s.color_diffuse[2]);
+    glm::vec3 ks(s.color_specular[0], s.color_specular[1], s.color_specular[2]);
+    glm::vec3 l_dir = glm::normalize(l_pos - intersection);
+    glm::vec3 n = glm::normalize(intersection - s_pos);
+    float l_dot_n = glm::dot(l_dir, n);
+    clamp(l_dot_n);
+
+    // specular
+    glm::vec3 r = glm::normalize(2 * l_dot_n * n - l_dir);
+    glm::vec3 v = glm::normalize(-intersection); // eye_dir 0 - intersection;
+    float r_dot_v = glm::dot(r, v);
+    float specular = pow(r_dot_v, s.shininess);
+
+    glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
+
+    return Color(c.r, r.g, r.b);      
+}
+
+Color check_spheres_intersection(Color &c, Ray &ray) {
+
+  float t = 0.0f;
+  int intersection_index = -1;
+  Color &color = c;
+  glm::vec3 intersection;
+
+  // find the closest sphere intersect with ray
+  for (int i = 0; i < num_spheres; ++i) {
+
+    float tmp_t = -1.0f;
+
+    if (!ray.check_single_sphere_intersection(spheres[i], tmp_t, intersection)) continue;
+
+    // calculate the intersection in the smallest t
+    if (tmp_t < t || intersection_index == -1) {
+      t = tmp_t;
+      intersection_index = i;
+      intersection = ray.pos + ray.dir * t;
     }
   }
 
+  if (intersection_index != -1) {
+
+    // check out each light source
+    for (int i = 0; i < num_lights; ++i) {
+
+      // create shadow ray
+      Light &light = lights[i];
+      glm::vec3 l_pos(light.position[0], light.position[1], light.position[2]);
+      glm::vec3 shadow_ray_dir = l_pos - intersection;
+      Ray shadow_ray(shadow_ray_dir, intersection);
+      bool in_shadow = false;
+
+      // check to see if shadow_ray is blocked by any spheres
+      for (int j = 0; j < num_spheres; ++j) {
+        glm::vec3 shadow_ray_intersection;
+        float tmp_t = -1.0f;
+        
+        // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
+        if (shadow_ray.check_single_sphere_intersection(spheres[j], tmp_t, shadow_ray_intersection) && intersection_index != j) {
+          float intersection_to_light = glm::length(l_pos - intersection);
+          float intersection_to_shadow_intersect = glm::length(shadow_ray_intersection - intersection);
+
+          // if the light is beyond the object with shadow ray intersection, the object is blocking the light
+          if (intersection_to_light - intersection_to_shadow_intersect) {
+            in_shadow = true;
+            break;
+          }
+        }
+      }
+
+      if (!in_shadow) {
+        color += phong_shading(spheres[intersection_index], lights[i], intersection);
+      }
+
+    }
+    
+  }
+
+  return color;
 }
+
+Color tracing(int x, int y) {
+
+  Ray ray;
+  Color color;
+
+  ray.generate_ray(x, y);
+  check_spheres_intersection(color, ray);
+
+  return color;
+
+}
+
 
 //MODIFY THIS FUNCTION
 void draw_scene()
 {
-
-  unsigned char framebuffer[HEIGHT][WIDTH][3];
-
-  for (unsigned int x = 0; x < WIDTH; ++x) {
-    for (unsigned int y = 0; y < HEIGHT; ++y) {
-      framebuffer[y][x][0] = 127;
-      framebuffer[y][x][1] = 127;
-      framebuffer[y][x][2] = 127;
-    }
-  }
 
   for(unsigned int x=0; x<WIDTH; x++)
   {
@@ -188,7 +293,9 @@ void draw_scene()
 
     for(unsigned int y=0; y<HEIGHT; y++)
     {
-      plot_pixel(x, y, framebuffer[x][y][0], framebuffer[x][y][1], framebuffer[x][y][2]);
+      Color color = tracing(x, y);
+      color.print();
+      plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
     }
 
 
@@ -363,7 +470,6 @@ void idle()
   static int once=0;
   if(!once)
   {
-    tracing();
     draw_scene();
     if(mode == MODE_JPEG)
       save_jpg();
