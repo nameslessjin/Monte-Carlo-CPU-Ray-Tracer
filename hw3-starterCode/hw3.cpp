@@ -119,6 +119,7 @@ double ambient_light[3];
 int num_triangles = 0;
 int num_spheres = 0;
 int num_lights = 0;
+float e = 1e-13;
 
 void plot_pixel_display(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel_jpeg(int x,int y,unsigned char r,unsigned char g,unsigned char b);
@@ -156,6 +157,11 @@ Color check_spheres_intersection(Color &c, Ray &ray);
 bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection);
 bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection);
 glm::vec3 vec3(double *v3);
+float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c);
+float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
+float calc_triangle_area_yz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
+float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c);
+Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 n, glm::vec3 l_color, glm::vec3 kd, glm::vec3 ks, float shininess, glm::vec3 intersection);
 
 void clamp(float &f) {
   if (f > 1.0) f = 1.0;
@@ -166,14 +172,56 @@ glm::vec3 vec3(double *v3) {
   return glm::vec3(v3[0], v3[1], v3[2]);
 }
 
+float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+  return 0.5f * ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
+}
+
+float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+  return 0.5f * ((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z));
+}
+
+float calc_triangle_area_yz(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+  return 0.5f * ((b.y - a.y) * (c.z - a.z) - (c.y - a.y) * (b.z - a.z));
+}
+
+float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+  return 0.5f * glm::length(glm::cross(b - a, c - a));
+} 
+
 bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection) {
 
   glm::vec3 c0 = vec3(tri.v[0].position);
   glm::vec3 c1 = vec3(tri.v[1].position);
   glm::vec3 c2 = vec3(tri.v[2].position);
 
-  return true;
+  // check if there is an intersection between the plane and ray
+  glm::vec3 plane_n = glm::normalize(glm::cross(c1 - c0, c2 - c1));
+  float n_dot_d = glm::dot(plane_n, r.dir);
+
+  // light direction is parallel to the plane
+  if (abs(n_dot_d) < e) return false;
+
+  // calculate the intersection between ray and plane
+  float d = -glm::dot(plane_n, c0);
+  t = -(glm::dot(plane_n, r.pos) + d) / n_dot_d;
+  if (t <= 0) return false;
+  intersection = r.pos + r.dir * t;
+
+  // check if the intersection is inside the polygon with 2d projection against x-y plane
+  glm::vec3 c = intersection;
+  float c_c1_c2 = calc_triangle_area_xy(c, c1, c2);
+  float c0_c_c2 = calc_triangle_area_xy(c0, c, c2);
+  float c0_c1_c = calc_triangle_area_xy(c0, c1, c);
+  float c0_c1_c2 = calc_triangle_area_xy(c0, c1, c2);
+
+  float alpha = c_c1_c2 / c0_c1_c2;
+  float beta = c0_c_c2 / c0_c1_c2;
+  float gamma = 1.0f - alpha - beta;
+
+  return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
+
+
 
 bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection) {
 
@@ -203,16 +251,10 @@ bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &in
     return true;
 }
 
-Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
+
+Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 n, glm::vec3 l_color, glm::vec3 kd, glm::vec3 ks, float shininess, glm::vec3 intersection) {
 
     // diffuse
-    glm::vec3 l_pos = vec3(l.position);
-    glm::vec3 s_pos = vec3(s.position);
-    glm::vec3 l_color = vec3(l.color);
-    glm::vec3 kd = vec3(s.color_diffuse);
-    glm::vec3 ks = vec3(s.color_specular);
-    glm::vec3 l_dir = glm::normalize(l_pos - intersection);
-    glm::vec3 n = glm::normalize(intersection - s_pos);
     float l_dot_n = glm::dot(l_dir, n);
     clamp(l_dot_n);
 
@@ -221,11 +263,52 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
     glm::vec3 v = glm::normalize(-intersection); // eye_dir 0 - intersection;
     float r_dot_v = glm::dot(r, v);
     clamp(r_dot_v);
-    float specular = pow(r_dot_v, s.shininess);
+    float specular = pow(r_dot_v, shininess);
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
-    
-    return Color (c); 
+
+    return Color (c);
+}
+
+Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
+
+    glm::vec3 l_pos = vec3(l.position);
+    glm::vec3 l_color = vec3(l.color);
+    glm::vec3 l_dir = glm::normalize(l_pos - intersection);
+    glm::vec3 s_pos = vec3(s.position);
+    glm::vec3 kd = vec3(s.color_diffuse);
+    glm::vec3 ks = vec3(s.color_specular);
+    glm::vec3 n = glm::normalize(intersection - s_pos);
+    float shininess = s.shininess;
+
+    return calc_phong_shading(l_dir, n, l_color, kd, ks, shininess, intersection);
+}
+
+Color phong_shading(Triangle &t, Light &l, glm::vec3 intersection) {
+
+  glm::vec3 l_pos = vec3(l.position);
+  glm::vec3 l_color = vec3(l.color);
+  glm::vec3 l_dir = glm::normalize(l_pos - intersection);
+
+  Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
+  glm::vec3 c0 = vec3(v0.position), c1 = vec3(v1.position), c2 = vec3(v2.position), c = intersection;
+
+  // barycentric interpolation
+  float c_c1_c2 = calc_triangle_area(c, c1, c2);
+  float c0_c_c2 = calc_triangle_area(c0, c, c2);
+  float c0_c1_c = calc_triangle_area(c0, c1, c);
+  float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
+
+  float alpha = c_c1_c2 / c0_c1_c2;
+  float beta = c0_c_c2 / c0_c1_c2;
+  float gamma = c0_c1_c / c0_c1_c2;
+
+  glm::vec3 n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
+  glm::vec3 kd = alpha * vec3(v0.color_diffuse) + beta * vec3(v1.color_diffuse) + gamma * vec3(v2.color_diffuse);
+  glm::vec3 ks = alpha * vec3(v0.color_specular) + beta * vec3(v1.color_specular) + gamma * vec3(v2.color_specular);
+  float shiniess = alpha * v0.shininess + beta * v1.shininess + gamma * v2.shininess;
+  
+  return calc_phong_shading(l_dir, n, l_color, kd, ks, shiniess, intersection);
 }
 
 Color check_spheres_intersection(Color &c, Ray &ray) {
@@ -286,8 +369,6 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
       }
     }
   }
-
-
   return color;
 }
 
