@@ -88,19 +88,23 @@ struct Color {
   Color() {r = 0; g = 0; b = 0;}
   Color(float _r, float _g, float _b) {r = _r, g =_g; b = _b;}
 
-  Color &clamp() {
+  void clamp() {
     if (r > 1.0) r = 1.0;
     if (r < 0.0) r = 0.0;
     if (g > 1.0) g = 1.0;
     if (g < 0.0) g = 0.0;
     if (b > 1.0) b = 1.0;
     if (b < 0.0) b = 0.0;
+  }
 
+  Color &operator+=(Color const &c) {
+    r += c.r; 
+    g += c.g; 
+    b += c.b; 
+    clamp(); 
     return *this;
   }
 
-  Color &operator+(Color &c) {return Color(c.r + r, c.g + g, c.b + b).clamp();}
-  Color &operator+=(Color const &c) {return Color(c.r + r, c.g + g, c.b + b).clamp();}
   void print() {
     std::cout << "r: " << r << " b: " << b << " g: " << g << '\n';
   }
@@ -125,7 +129,7 @@ struct Ray {
   glm::vec3 dir;
   glm::vec3 pos;
 
-  Ray() {dir = glm::vec3(0,0,0);}
+  Ray() {dir = glm::vec3(0,0,0); pos = glm::vec3(0,0,0);}
   Ray(glm::vec3 _dir, glm::vec3 _pos) { dir = _dir; pos = _pos;}
 
   void generate_ray(int x, int y) {
@@ -148,13 +152,16 @@ struct Ray {
       float y0_yc = pos.y - s.position[1];
       float z0_zc = pos.z - s.position[2];
       float a = 1.0f;
-      float b = 2 * (dir[0] * x0_xc + y0_yc + z0_zc);
+      float b = 2 * (dir[0] * x0_xc + dir[1] * y0_yc + dir[2] * z0_zc);
       float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
+      float bc = pow(b, 2) - 4 * c;
 
-      if (pow(b, 2) - 4 * c < 0) return false;
+      if (bc < 0) return false;
 
-      float t0 = (-b + sqrt(pow(b, 2) - 4 * c)) / 2;
-      float t1 = (-b - sqrt(pow(b, 2) - 4 * c)) / 2;
+      float t0 = (-b + sqrt(bc)) / (2 * a);
+      float t1 = (-b - sqrt(bc)) / (2 * a);
+
+      // std::cout << "t0: " << t0 << " t1: " << t1 << '\n';
 
       if (t0 >= 0 && t1 >= 0) {
         t = std::min(t0, t1);
@@ -196,14 +203,16 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
     clamp(l_dot_n);
 
     // specular
-    glm::vec3 r = glm::normalize(2 * l_dot_n * n - l_dir);
+    glm::vec3 r = glm::normalize(2.0f * l_dot_n * n - l_dir);
     glm::vec3 v = glm::normalize(-intersection); // eye_dir 0 - intersection;
     float r_dot_v = glm::dot(r, v);
+    clamp(r_dot_v);
     float specular = pow(r_dot_v, s.shininess);
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
 
-    return Color(c.r, r.g, r.b);      
+    Color color(c.r, c.g, c.b);
+    return color; 
 }
 
 Color check_spheres_intersection(Color &c, Ray &ray) {
@@ -227,7 +236,6 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
       intersection = ray.pos + ray.dir * t;
     }
   }
-
   if (intersection_index != -1) {
 
     // check out each light source
@@ -239,6 +247,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
       glm::vec3 shadow_ray_dir = l_pos - intersection;
       Ray shadow_ray(shadow_ray_dir, intersection);
       bool in_shadow = false;
+
 
       // check to see if shadow_ray is blocked by any spheres
       for (int j = 0; j < num_spheres; ++j) {
@@ -261,10 +270,9 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
       if (!in_shadow) {
         color += phong_shading(spheres[intersection_index], lights[i], intersection);
       }
-
     }
-    
   }
+
 
   return color;
 }
@@ -294,7 +302,6 @@ void draw_scene()
     for(unsigned int y=0; y<HEIGHT; y++)
     {
       Color color = tracing(x, y);
-      color.print();
       plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
     }
 
