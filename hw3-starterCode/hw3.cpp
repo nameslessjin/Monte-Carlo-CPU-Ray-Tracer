@@ -172,8 +172,7 @@ struct Ray {
       }
 
       intersection = pos + dir * t;
-
-
+      
       return true;
   }
 
@@ -210,9 +209,7 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
     float specular = pow(r_dot_v, s.shininess);
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
-
-    Color color(c.r, c.g, c.b);
-    return color; 
+    return Color (c.r, c.g, c.b); 
 }
 
 Color check_spheres_intersection(Color &c, Ray &ray) {
@@ -267,6 +264,7 @@ Color check_spheres_intersection(Color &c, Ray &ray) {
         }
       }
 
+      // if the ray is not block then calculate phong shading
       if (!in_shadow) {
         color += phong_shading(spheres[intersection_index], lights[i], intersection);
       }
