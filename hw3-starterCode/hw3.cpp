@@ -62,6 +62,15 @@ struct Vertex
   double shininess;
 };
 
+struct GLM_Vertex
+{
+  glm::vec3 position;
+  glm::vec3 kd;
+  glm::vec3 ks;
+  glm::vec3 n;
+  float shininess;
+};
+
 struct Triangle
 {
   Vertex v[3];
@@ -105,6 +114,23 @@ struct Color {
     clamp(); 
     return *this;
   }
+
+  Color &operator+(Color const &c) {
+    r += c.r; 
+    g += c.g; 
+    b += c.b; 
+    clamp(); 
+    return *this;
+  }
+
+  Color &operator*(glm::vec3 vec3) {
+    r *= vec3.r;
+    g *= vec3.g;
+    b *= vec3.b;
+    clamp();
+    return *this;
+  }
+  
 
   void print() {
     std::cout << "r: " << r << " b: " << b << " g: " << g << '\n';
@@ -158,13 +184,18 @@ bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::ve
 glm::vec3 vec3(double *v3);
 float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
-float calc_triangle_area_yz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c);
-Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 n, glm::vec3 l_color, glm::vec3 kd, glm::vec3 ks, float shininess, glm::vec3 intersection);
+bool point_triangle_xy(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c);
+bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c);
+Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 l_color, GLM_Vertex vertex);
 bool check_block(Ray &r, Sphere &s, Light &l, int i, int j);
 bool check_block(Ray &r, Triangle &t, Light &l, int i, int j);
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection);
 Color check_intersection(Color &c, Ray &ray);
+glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec3 intersection);
+Color recursive_trace(Ray &ray);
+glm::vec3 vec3(float a, float b, float c) ;
+GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection);
 
 void clamp(float &f) {
   if (f > 1.0) f = 1.0;
@@ -175,16 +206,16 @@ glm::vec3 vec3(double *v3) {
   return glm::vec3(v3[0], v3[1], v3[2]);
 }
 
+glm::vec3 vec3(float a, float b, float c) {
+  return glm::vec3(a, b, c);
+}
+
 float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
   return 0.5f * ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
 }
 
 float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
   return 0.5f * ((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z));
-}
-
-float calc_triangle_area_yz(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
-  return 0.5f * ((b.y - a.y) * (c.z - a.z) - (c.y - a.y) * (b.z - a.z));
 }
 
 float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
@@ -205,15 +236,6 @@ bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c) {
   float c0_c_c2 = calc_triangle_area_xz(c0, c, c2);
   float c0_c1_c = calc_triangle_area_xz(c0, c1, c);
   float c0_c1_c2 = calc_triangle_area_xz(c0, c1, c2);
-  float alpha = c_c1_c2 / c0_c1_c2, beta = c0_c_c2 / c0_c1_c2, gamma = 1.0f - alpha - beta;
-  return alpha >= 0 && beta >= 0 && gamma >= 0;
-}
-
-bool point_triangle_yz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c) {
-  float c_c1_c2 = calc_triangle_area_yz(c, c1, c2);
-  float c0_c_c2 = calc_triangle_area_yz(c0, c, c2);
-  float c0_c1_c = calc_triangle_area_yz(c0, c1, c);
-  float c0_c1_c2 = calc_triangle_area_yz(c0, c1, c2);
   float alpha = c_c1_c2 / c0_c1_c2, beta = c0_c_c2 / c0_c1_c2, gamma = 1.0f - alpha - beta;
   return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
@@ -241,7 +263,6 @@ bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::ve
   glm::vec3 c = intersection;
   bool in_xy = point_triangle_xy(c0, c1, c2, c);
   bool in_xz = point_triangle_xz(c0, c1, c2, c);
-  bool in_yz = point_triangle_yz(c0, c1, c2, c);
   return in_xy || in_xz;
 }
 
@@ -273,7 +294,13 @@ bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &in
     return true;
 }
 
-Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 n, glm::vec3 l_color, glm::vec3 kd, glm::vec3 ks, float shininess, glm::vec3 intersection) {
+Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 l_color, GLM_Vertex vertex) {
+
+    glm::vec3 n = vertex.n;
+    glm::vec3 kd = vertex.kd;
+    glm::vec3 ks = vertex.ks;
+    glm::vec3 intersection = vertex.position;
+    float shininess = vertex.shininess;
 
     // diffuse
     float l_dot_n = glm::dot(l_dir, n);
@@ -293,47 +320,30 @@ Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 n, glm::vec3 l_color, glm::v
 
 Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection) {
 
+    GLM_Vertex v;
     glm::vec3 l_pos = vec3(l.position);
     glm::vec3 l_color = vec3(l.color);
     glm::vec3 l_dir = glm::normalize(l_pos - intersection);
     glm::vec3 s_pos = vec3(s.position);
-    glm::vec3 kd = vec3(s.color_diffuse);
-    glm::vec3 ks = vec3(s.color_specular);
-    glm::vec3 n = glm::normalize(intersection - s_pos);
-    float shininess = s.shininess;
+    v.kd = vec3(s.color_diffuse);
+    v.ks = vec3(s.color_specular);
+    v.n = glm::normalize(intersection - s_pos);
+    v.shininess = s.shininess;
+    v.position = intersection;
 
-    return calc_phong_shading(l_dir, n, l_color, kd, ks, shininess, intersection);
+    return calc_phong_shading(l_dir, l_color, v);
 }
 
-Color phong_shading(Triangle &t, Light &l, glm::vec3 intersection) {
+Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection) {
 
   glm::vec3 l_pos = vec3(l.position);
   glm::vec3 l_color = vec3(l.color);
   glm::vec3 l_dir = glm::normalize(l_pos - intersection);
 
-  Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
-  glm::vec3 c0 = vec3(v0.position), c1 = vec3(v1.position), c2 = vec3(v2.position), c = intersection;
-
   // barycentric interpolation
-  float c_c1_c2 = calc_triangle_area(c, c1, c2);
-  float c0_c_c2 = calc_triangle_area(c0, c, c2);
-  float c0_c1_c = calc_triangle_area(c0, c1, c);
-  float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
-
-  float alpha = c_c1_c2 / c0_c1_c2;
-  float beta = c0_c_c2 / c0_c1_c2;
-  float gamma = 1.0f - alpha - beta;
-
-  // std::cout << "alpha: " << alpha << " beta: " << beta << " gamma: " << gamma << '\n';
-  // std::cout << "c0_c1_c2: " << c0_c1_c2 << " c_c1_c2: " << c_c1_c2 << " c0_c_c2: " << c0_c_c2 << '\n'; 
-  // std::cout << "c0: " << glm::to_string(c0) << "c1: " << glm::to_string(c1) << "c2: " << glm::to_string(c2) << "c: " << glm::to_string(c) << '\n'; 
-
-  glm::vec3 n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
-  glm::vec3 kd = alpha * vec3(v0.color_diffuse) + beta * vec3(v1.color_diffuse) + gamma * vec3(v2.color_diffuse);
-  glm::vec3 ks = alpha * vec3(v0.color_specular) + beta * vec3(v1.color_specular) + gamma * vec3(v2.color_specular);
-  float shiniess = alpha * v0.shininess + beta * v1.shininess + gamma * v2.shininess;
+  GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
   
-  return calc_phong_shading(l_dir, n, l_color, kd, ks, shiniess, intersection);
+  return calc_phong_shading(l_dir, l_color, v);
 }
 
 bool check_block(Ray &r, Sphere &s, Light &l, int i, int j) {
@@ -376,6 +386,32 @@ bool check_block(Ray &r, Triangle &t, Light &l, int i, int j) {
   return false;
 }
 
+GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection) {
+
+  GLM_Vertex vertex;
+
+  Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
+  glm::vec3 c0 = vec3(v0.position), c1 = vec3(v1.position), c2 = vec3(v2.position), c = intersection;
+
+  // barycentric interpolation
+  float c_c1_c2 = calc_triangle_area(c, c1, c2);
+  float c0_c_c2 = calc_triangle_area(c0, c, c2);
+  float c0_c1_c = calc_triangle_area(c0, c1, c);
+  float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
+
+  float alpha = c_c1_c2 / c0_c1_c2;
+  float beta = c0_c_c2 / c0_c1_c2;
+  float gamma = 1.0f - alpha - beta;
+
+  vertex.n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
+  vertex.kd = alpha * vec3(v0.color_diffuse) + beta * vec3(v1.color_diffuse) + gamma * vec3(v2.color_diffuse);
+  vertex.ks = alpha * vec3(v0.color_specular) + beta * vec3(v1.color_specular) + gamma * vec3(v2.color_specular);
+  vertex.shininess = alpha * v0.shininess + beta * v1.shininess + gamma * v2.shininess;
+  vertex.position = intersection;
+  
+  return vertex;
+}
+
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection) {
 
   color = Color();
@@ -414,6 +450,8 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
         color += phong_shading(triangles[triangle_i], light, intersection);
     }
   }
+
+
 
 }
 
@@ -455,8 +493,25 @@ Color check_intersection(Color &c, Ray &ray) {
 
   if (triangle_i == -1 && sphere_i != -1) {
     calc_shadow_ray(color, sphere_i, -1, s_intersection);
+
+    // glm::vec3 r = calc_reflect_dir(sphere_i, -1, ray.dir, s_intersection);
+    // Ray reflect_ray(r, s_intersection);
+    // Color reflect_color = recursive_trace(reflect_ray);
+    // Sphere &s = spheres[sphere_i];
+    // glm::vec3 ks = vec3(s.color_specular);
+    // color = color * (1.0f - ks) + reflect_color * ks;
+
   } else if (triangle_i != -1 && sphere_i == -1) {
     calc_shadow_ray(color, -1, triangle_i, t_intersection);
+
+    // glm::vec3 r = calc_reflect_dir(-1, triangle_i, ray.dir, t_intersection);
+    // Ray reflect_ray(r, t_intersection);
+    // Color reflect_color = recursive_trace(reflect_ray);
+    // Sphere &t = triangles[triangle_i];
+
+    // glm::vec3 ks = vec3(t.color_specular);
+    // color = color * (1.0f - ks) + reflect_color * ks;
+
   } else if (triangle_i != -1 && sphere_i != -1) {
     if (sphere_t < triangle_t)
       calc_shadow_ray(color, sphere_i, -1, s_intersection);
@@ -467,7 +522,94 @@ Color check_intersection(Color &c, Ray &ray) {
   return color;
 }
 
+glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec3 intersection) {
 
+  glm::vec3 n;
+
+  if (sphere_i != -1) {
+    glm::vec3 s_pos = vec3(spheres[sphere_i].position);
+    n = glm::normalize(intersection - s_pos);
+  } else {
+    Triangle &t = triangles[triangle_i];
+    Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
+    glm::vec3 c0 = vec3(v0.position), c1 = vec3(v1.position), c2 = vec3(v2.position), c = intersection;
+
+    // barycentric interpolation
+    float c_c1_c2 = calc_triangle_area(c, c1, c2);
+    float c0_c_c2 = calc_triangle_area(c0, c, c2);
+    float c0_c1_c = calc_triangle_area(c0, c1, c);
+    float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
+    float alpha = c_c1_c2 / c0_c1_c2;
+    float beta = c0_c_c2 / c0_c1_c2;
+    float gamma = 1.0f - alpha - beta;
+    n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
+  }
+
+  float l_dot_n = glm::dot(dir, n);
+  clamp(l_dot_n);
+  glm::vec3 r = glm::normalize(2.0f * l_dot_n * n - dir);
+
+  return r;
+
+}
+
+Color recursive_trace(Ray &ray) {
+
+  float sphere_t = 0.0f, triangle_t = 0.0f;
+  int sphere_i = -1, triangle_i = -1;
+  Color color;
+  glm::vec3 s_intersection, t_intersection;
+
+  // find the closest sphere intersect with ray
+  for (int i = 0; i < num_spheres; ++i) {
+
+    float tmp_t = -1.0f;
+
+    if (!check_single_sphere_intersection(ray, spheres[i], tmp_t, s_intersection)) continue;
+
+    // calculate the intersection in the smallest t
+    if (tmp_t < sphere_t || sphere_i == -1) {
+      sphere_t = tmp_t;
+      sphere_i = i;
+    }
+  }
+
+  // find the cloest triangle intersection with ray
+  for (int i = 0; i < num_triangles; ++i) {
+    float tmp_t = -1.0f;
+    
+    if (!check_single_triangle_intersection(ray, triangles[i], tmp_t, t_intersection)) continue;
+
+    // calculate the intersection in the smallest t
+    if (tmp_t < triangle_t || triangle_i == -1) {
+      triangle_t = tmp_t;
+      triangle_i = i;
+    }
+  }
+
+  s_intersection = ray.pos + ray.dir * sphere_t;
+  t_intersection = ray.pos + ray.dir * triangle_t;
+
+  if (triangle_i == -1 && sphere_i != -1) {
+
+    // create a reflective ray
+    // call recursive_trace with the ray and get the color
+    glm::vec3 r = calc_reflect_dir(sphere_i, -1, ray.dir, s_intersection);
+    Ray reflect_ray(r, s_intersection);
+
+
+  } else if (triangle_i != -1 && sphere_i == -1) {
+    
+  } else if (triangle_i != -1 && sphere_i != -1) {
+    if (sphere_t < triangle_t) {
+
+    } else {
+
+    }
+  }
+
+  return color;
+}
 Color tracing(int x, int y) {
 
   Ray ray;
