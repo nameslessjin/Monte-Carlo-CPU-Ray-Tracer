@@ -94,7 +94,7 @@ struct Light
 struct Color {
   float r, g, b;
 
-  Color() {r = 0; g = 0; b = 0;}
+  Color() {r = 0.0f; g = 0.0f; b = 0.0f;}
   Color(float _r, float _g, float _b) {r = _r; g =_g; b = _b;}
   Color(glm::vec3 c) {r = c.r; g = c.g; b = c.b;}
 
@@ -123,15 +123,13 @@ struct Color {
     return *this;
   }
 
-  Color &operator*(glm::vec3 vec3) {
-    r *= vec3.r;
-    g *= vec3.g;
-    b *= vec3.b;
-    clamp();
-    return *this;
+  Color operator*(glm::vec3 vec3) {
+
+    Color new_c = Color(r * vec3.r, g * vec3.g, b * vec3.b);
+    new_c.clamp();
+    return new_c;
   }
   
-
   void print() {
     std::cout << "r: " << r << " b: " << b << " g: " << g << '\n';
   }
@@ -150,7 +148,6 @@ float e = 1e-13;
 void plot_pixel_display(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel_jpeg(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel(int x,int y,unsigned char r,unsigned char g,unsigned char b);
-
 
 
 struct Ray {
@@ -176,9 +173,9 @@ struct Ray {
 
 };
 
-
 void clamp(float &f);
 Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection);
+Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection);
 bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection);
 bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection);
 glm::vec3 vec3(double *v3);
@@ -193,13 +190,13 @@ bool check_block(Ray &r, Triangle &t, Light &l, int i, int j);
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection);
 Color check_intersection(Color &c, Ray &ray);
 glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec3 intersection);
-Color recursive_trace(Ray &ray);
+Color recursive_trace(Ray &ray, int s_i, int t_i);
 glm::vec3 vec3(float a, float b, float c) ;
 GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection);
 
 void clamp(float &f) {
-  if (f > 1.0) f = 1.0;
-  else if (f < 0.0f) f = 0.0;
+  if (f > 1.0f) f = 1.0f;
+  else if (f < 0.0f) f = 0.0f;
 }
 
 glm::vec3 vec3(double *v3) {
@@ -237,7 +234,7 @@ bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c) {
   float c0_c1_c = calc_triangle_area_xz(c0, c1, c);
   float c0_c1_c2 = calc_triangle_area_xz(c0, c1, c2);
   float alpha = c_c1_c2 / c0_c1_c2, beta = c0_c_c2 / c0_c1_c2, gamma = 1.0f - alpha - beta;
-  return alpha >= 0 && beta >= 0 && gamma >= 0;
+  return alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f;
 }
 
 bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection) {
@@ -256,7 +253,7 @@ bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::ve
   // calculate the intersection between ray and plane
   float d = -glm::dot(plane_n, c0);
   t = -(glm::dot(plane_n, r.pos) + d) / n_dot_d;
-  if (t <= 0) return false;
+  if (t <= 0.0f) return false;
   intersection = r.pos + r.dir * t;
 
   // check if the intersection is inside the polygon with 2d projection against x-y plane
@@ -281,9 +278,9 @@ bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &in
     float t0 = (-b + sqrt(bc)) / (2 * a);
     float t1 = (-b - sqrt(bc)) / (2 * a);
 
-    if (t0 >= 0 && t1 >= 0) {
+    if (t0 >= 0.0f && t1 >= 0.0f) {
       t = std::min(t0, t1);
-    } else if (t0 < 0 && t1 < 0) {
+    } else if (t0 < 0.0f && t1 < 0.0f) {
       return false;
     } else {
       t = std::max(t0, t1);
@@ -301,7 +298,7 @@ Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 l_color, GLM_Vertex vertex) 
     glm::vec3 ks = vertex.ks;
     glm::vec3 intersection = vertex.position;
     float shininess = vertex.shininess;
-
+    
     // diffuse
     float l_dot_n = glm::dot(l_dir, n);
     clamp(l_dot_n);
@@ -314,7 +311,7 @@ Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 l_color, GLM_Vertex vertex) 
     float specular = pow(r_dot_v, shininess);
 
     glm::vec3 c = l_color * (kd * l_dot_n + ks * specular);
-
+    
     return Color (c);
 }
 
@@ -426,11 +423,9 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
     Ray shadow_ray(shadow_ray_dir, intersection);
     bool blocked = false;
 
-
     // check to see if shadow_ray is blocked by any spheres
     for (int j = 0; j < num_spheres && !blocked; ++j) {
       if (check_block(shadow_ray, spheres[j], light, sphere_i, j)) {
-        // std::cout << "triangle_i: " << triangle_i << " intersection: " << glm::to_string(intersection) << '\n';
         blocked = true;
       }
     }
@@ -450,8 +445,26 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
         color += phong_shading(triangles[triangle_i], light, intersection);
     }
   }
+}
 
+void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray) {
+  calc_shadow_ray(c, sphere_i, triangle_i, intersection);
 
+  glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
+  Ray reflect_ray(r, intersection);
+  Color reflect_color = recursive_trace(reflect_ray, sphere_i, triangle_i);
+  glm::vec3 ks;
+
+  if (sphere_i != -1) {
+    Sphere &s = spheres[sphere_i];
+    ks = vec3(s.color_specular);
+  } else {
+    Triangle &t = triangles[triangle_i];
+    GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
+    ks = v.ks;
+  }
+
+  c = c * (1.0f - ks) + reflect_color * ks;
 
 }
 
@@ -492,31 +505,16 @@ Color check_intersection(Color &c, Ray &ray) {
   t_intersection = ray.pos + ray.dir * triangle_t;
 
   if (triangle_i == -1 && sphere_i != -1) {
-    calc_shadow_ray(color, sphere_i, -1, s_intersection);
-
-    // glm::vec3 r = calc_reflect_dir(sphere_i, -1, ray.dir, s_intersection);
-    // Ray reflect_ray(r, s_intersection);
-    // Color reflect_color = recursive_trace(reflect_ray);
-    // Sphere &s = spheres[sphere_i];
-    // glm::vec3 ks = vec3(s.color_specular);
-    // color = color * (1.0f - ks) + reflect_color * ks;
-
+    calc_ray_color(color, sphere_i, -1, s_intersection, ray);
   } else if (triangle_i != -1 && sphere_i == -1) {
-    calc_shadow_ray(color, -1, triangle_i, t_intersection);
-
-    // glm::vec3 r = calc_reflect_dir(-1, triangle_i, ray.dir, t_intersection);
-    // Ray reflect_ray(r, t_intersection);
-    // Color reflect_color = recursive_trace(reflect_ray);
-    // Sphere &t = triangles[triangle_i];
-
-    // glm::vec3 ks = vec3(t.color_specular);
-    // color = color * (1.0f - ks) + reflect_color * ks;
-
+    calc_ray_color(color, -1, triangle_i, t_intersection, ray);
   } else if (triangle_i != -1 && sphere_i != -1) {
-    if (sphere_t < triangle_t)
-      calc_shadow_ray(color, sphere_i, -1, s_intersection);
-    else
-      calc_shadow_ray(color, -1, triangle_i, t_intersection);
+    if (sphere_t < triangle_t) {
+      calc_ray_color(color, sphere_i, -1, s_intersection, ray);
+    }
+    else {
+      calc_ray_color(color, -1, triangle_i, t_intersection, ray);
+    }
   }
 
   return color;
@@ -531,29 +529,20 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
     n = glm::normalize(intersection - s_pos);
   } else {
     Triangle &t = triangles[triangle_i];
-    Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
-    glm::vec3 c0 = vec3(v0.position), c1 = vec3(v1.position), c2 = vec3(v2.position), c = intersection;
 
-    // barycentric interpolation
-    float c_c1_c2 = calc_triangle_area(c, c1, c2);
-    float c0_c_c2 = calc_triangle_area(c0, c, c2);
-    float c0_c1_c = calc_triangle_area(c0, c1, c);
-    float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
-    float alpha = c_c1_c2 / c0_c1_c2;
-    float beta = c0_c_c2 / c0_c1_c2;
-    float gamma = 1.0f - alpha - beta;
-    n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
+    GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
+    n = v.n;
   }
 
-  float l_dot_n = glm::dot(dir, n);
+  glm::vec3 l_dir = -dir;
+  float l_dot_n = glm::dot(l_dir, n);
   clamp(l_dot_n);
-  glm::vec3 r = glm::normalize(2.0f * l_dot_n * n - dir);
+  glm::vec3 r = glm::normalize(2.0f * l_dot_n * n - l_dir);
 
   return r;
-
 }
 
-Color recursive_trace(Ray &ray) {
+Color recursive_trace(Ray &ray, int s_i, int t_i) {
 
   float sphere_t = 0.0f, triangle_t = 0.0f;
   int sphere_i = -1, triangle_i = -1;
@@ -565,6 +554,7 @@ Color recursive_trace(Ray &ray) {
 
     float tmp_t = -1.0f;
 
+    if (i == s_i) continue;
     if (!check_single_sphere_intersection(ray, spheres[i], tmp_t, s_intersection)) continue;
 
     // calculate the intersection in the smallest t
@@ -577,7 +567,8 @@ Color recursive_trace(Ray &ray) {
   // find the cloest triangle intersection with ray
   for (int i = 0; i < num_triangles; ++i) {
     float tmp_t = -1.0f;
-    
+
+    if (i == t_i) continue;
     if (!check_single_triangle_intersection(ray, triangles[i], tmp_t, t_intersection)) continue;
 
     // calculate the intersection in the smallest t
@@ -591,25 +582,21 @@ Color recursive_trace(Ray &ray) {
   t_intersection = ray.pos + ray.dir * triangle_t;
 
   if (triangle_i == -1 && sphere_i != -1) {
-
-    // create a reflective ray
-    // call recursive_trace with the ray and get the color
-    glm::vec3 r = calc_reflect_dir(sphere_i, -1, ray.dir, s_intersection);
-    Ray reflect_ray(r, s_intersection);
-
+    calc_shadow_ray(color, sphere_i, -1, s_intersection);
 
   } else if (triangle_i != -1 && sphere_i == -1) {
-    
+    calc_shadow_ray(color, -1, triangle_i, t_intersection);
+
   } else if (triangle_i != -1 && sphere_i != -1) {
     if (sphere_t < triangle_t) {
-
+      calc_shadow_ray(color, sphere_i, -1, s_intersection);
     } else {
-
+      calc_shadow_ray(color, -1, triangle_i, t_intersection);
     }
   }
-
   return color;
 }
+
 Color tracing(int x, int y) {
 
   Ray ray;
@@ -619,9 +606,7 @@ Color tracing(int x, int y) {
   check_intersection(color, ray);
 
   return color;
-
 }
-
 
 //MODIFY THIS FUNCTION
 void draw_scene()
