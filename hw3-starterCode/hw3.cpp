@@ -17,6 +17,7 @@
 #include <GLUT/glut.h>
 #endif
 
+#include <thread>
 #include <glm/glm.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <cmath>
@@ -50,8 +51,6 @@ int mode = MODE_DISPLAY;
 #define fov 60.0
 
 #define MAX_REFLECT 7
-
-#define DEG_TO_RAD(degrees) (degrees * M_PI / 180.0);
 
 unsigned char buffer[HEIGHT][WIDTH][3];
 
@@ -137,7 +136,6 @@ struct Color
     r += c.r;
     g += c.g;
     b += c.b;
-    clamp();
     return *this;
   }
 
@@ -146,7 +144,6 @@ struct Color
     r += c.r;
     g += c.g;
     b += c.b;
-    clamp();
     return *this;
   }
 
@@ -154,8 +151,15 @@ struct Color
   {
 
     Color new_c = Color(r * vec3.r, g * vec3.g, b * vec3.b);
-    new_c.clamp();
     return new_c;
+  }
+
+  Color operator/=(float f)
+  {
+    r /= f;
+    g /= f;
+    b /= f;
+    return *this;
   }
 
   void print()
@@ -194,19 +198,6 @@ struct Ray
     pos = _pos;
   }
 
-  void generate_ray(int x, int y)
-  {
-    float aspect_ratio = WIDTH * 1.0f / HEIGHT;
-    float fov_rad = DEG_TO_RAD(fov);
-    float half_fov_tan = std::tan(fov_rad * 0.5f);
-
-    // convert pixel coordinates to normalized device coordinates (NDC)
-    float ndcX = (2.0f * (x + 0.5f) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
-    float ndcY = (1.0f - 2.0f * (y + 0.5f) / (HEIGHT * 1.0f)) * half_fov_tan;
-
-    glm::vec3 dirs(ndcX, -ndcY, -1.0f);
-    dir = glm::normalize(dirs);
-  }
 };
 
 void clamp(float &f);
@@ -229,6 +220,8 @@ Color check_intersection(Color &c, Ray &ray, int s_i, int t_i, int time);
 glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec3 intersection);
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection);
 void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time);
+void generate_ray(Ray &ray, int x, int y);
+void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y);
 
 void clamp(float &f)
 {
@@ -246,6 +239,38 @@ glm::vec3 vec3(double *v3)
 glm::vec3 vec3(float a, float b, float c)
 {
   return glm::vec3(a, b, c);
+}
+
+void generate_ray(Ray &ray, int x, int y)
+{
+  float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+  float fov_rad = glm::radians(fov);
+  float half_fov_tan = std::tan(fov_rad * 0.5f);
+
+  // convert pixel coordinates to normalized device coordinates (NDC)
+  // generate a ray to go through the center of a pixel
+  float ndcX = (2.0f * (x + 0.5f) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+  float ndcY = (1.0f - 2.0f * (y + 0.5f) / (HEIGHT * 1.0f)) * half_fov_tan;
+
+  glm::vec3 dirs(ndcX, -ndcY, -1.0f);
+  ray.dir = glm::normalize(dirs);
+}
+
+void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y) {
+
+  float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+  float fov_rad = glm::radians(fov);
+  float half_fov_tan = std::tan(fov_rad * 0.5f);
+
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      float ndcX = (2.0f * (x + 0.125f + (i * 0.25f)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float ndcY = (1.0f - 2.0f * (y + 0.125f + (j * 0.25f)) / (HEIGHT * 1.0f)) * half_fov_tan;
+      glm::vec3 dirs(ndcX, -ndcY, -1.0f);
+      rays[i * 4 + j].dir = glm::normalize(dirs);
+    }
+  }
+
 }
 
 float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c)
@@ -645,14 +670,38 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
 
 Color tracing(int x, int y)
 {
+  // single ray per pixel
+  // Color color(1.0f, 1.0f, 1.0f);
 
-  Ray ray;
-  Color color(1.0f, 1.0f, 1.0f);
+  // Ray ray;
+  // generate_ray(ray, x, y);
+  // check_intersection(color, ray, -1, -1, MAX_REFLECT);
 
-  ray.generate_ray(x, y);
-  check_intersection(color, ray, -1, -1, MAX_REFLECT);
+  // anti-aliasing with 16 rays per pixel
+  Color color(0.0f, 0.0f, 0.0f);
+  std::vector<Ray> rays;
+  for (int i = 0; i < 16; ++i) {
+    Ray ray;
+    rays.push_back(ray);
+  }
+  generate_ray_antialiasing(rays, x, y);
+
+  for (int i = 0; i < 16; ++i) {
+    Color c(1.0f, 1.0f, 1.0f);
+    check_intersection(c, rays[i], -1, -1, MAX_REFLECT);
+    color += c;
+  }
+
+  color /= 16.0f;
 
   return color;
+}
+
+void draw_pixel(int x, int y) {
+  Color color = tracing(x, y);
+  color += Color(0.1f, 0.1f, 0.1f); // add ambient light
+  color.clamp();
+  plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
 }
 
 // MODIFY THIS FUNCTION
@@ -666,14 +715,15 @@ void draw_scene()
 
     for (unsigned int y = 0; y < HEIGHT; y++)
     {
-      Color color = tracing(x, y);
-      color += Color(0.1f, 0.1f, 0.1f); // add ambient light
-      plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
+      draw_pixel(x, y);
     }
 
     glEnd();
     glFlush();
   }
+
+
+
   printf("Done!\n");
   fflush(stdout);
 }
