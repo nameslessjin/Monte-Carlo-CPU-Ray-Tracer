@@ -511,40 +511,57 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
   for (int i = 0; i < num_lights; ++i)
   {
 
-    // create shadow ray
+    // create area light for softshadow
     Light &light = lights[i];
-    glm::vec3 l_pos = vec3(light.position);
-    glm::vec3 shadow_ray_dir = glm::normalize(l_pos - intersection);
-    Ray shadow_ray(shadow_ray_dir, intersection);
-    bool blocked = false;
+    
+    float multiplier = 100.0f;
+    for (float x = -1.0f; x < 1.0f; x += 0.2) {
+      for (float z = -1.0f; z < 1.0f; z += 0.2) {
 
-    // check to see if shadow_ray is blocked by any spheres
-    for (int j = 0; j < num_spheres && !blocked; ++j)
-    {
-      if (check_block(shadow_ray, spheres[j], light, sphere_i, j))
-      {
-        blocked = true;
+        Light new_light;
+        new_light.position[0] = light.position[0] + x;
+        new_light.position[1] = light.position[1];
+        new_light.position[2] = light.position[2] + z;
+        new_light.color[0] = light.color[0] / multiplier;
+        new_light.color[1] = light.color[1] / multiplier;
+        new_light.color[2] = light.color[2] / multiplier;
+
+        // create shadow ray
+        glm::vec3 l_pos = vec3(new_light.position);
+        glm::vec3 shadow_ray_dir = glm::normalize(l_pos - intersection);
+        Ray shadow_ray(shadow_ray_dir, intersection);
+        bool blocked = false;
+
+        // check to see if shadow_ray is blocked by any spheres
+        for (int j = 0; j < num_spheres && !blocked; ++j)
+        {
+          if (check_block(shadow_ray, spheres[j], new_light, sphere_i, j))
+          {
+            blocked = true;
+          }
+        }
+
+        // check to see if shadow ray is blocked by any triangles
+        for (int j = 0; j < num_triangles && !blocked; ++j)
+        {
+          if (check_block(shadow_ray, triangles[j], new_light, triangle_i, j))
+          {
+            blocked = true;
+          }
+        }
+
+        // if the ray is not block then calculate phong shading
+        if (!blocked)
+        {
+          if (triangle_i == -1)
+            color += phong_shading(spheres[sphere_i], new_light, intersection);
+          else
+            color += phong_shading(triangles[triangle_i], new_light, intersection);
+        }
+      }
+
       }
     }
-
-    // check to see if shadow ray is blocked by any triangles
-    for (int j = 0; j < num_triangles && !blocked; ++j)
-    {
-      if (check_block(shadow_ray, triangles[j], light, triangle_i, j))
-      {
-        blocked = true;
-      }
-    }
-
-    // if the ray is not block then calculate phong shading
-    if (!blocked)
-    {
-      if (triangle_i == -1)
-        color += phong_shading(spheres[sphere_i], light, intersection);
-      else
-        color += phong_shading(triangles[triangle_i], light, intersection);
-    }
-  }
 }
 
 void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time)
