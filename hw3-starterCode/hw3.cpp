@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
 #ifdef WIN32
 #define strcasecmp _stricmp
 #endif
@@ -53,6 +54,7 @@ int mode = MODE_DISPLAY;
 #define MAX_REFLECT 7
 
 unsigned char buffer[HEIGHT][WIDTH][3];
+float img[HEIGHT][WIDTH][3];
 
 struct Vertex
 {
@@ -676,7 +678,6 @@ Color tracing(int x, int y)
   // Ray ray;
   // generate_ray(ray, x, y);
   // check_intersection(color, ray, -1, -1, MAX_REFLECT);
-
   // anti-aliasing with 16 rays per pixel
   Color color(0.0f, 0.0f, 0.0f);
   std::vector<Ray> rays;
@@ -701,28 +702,67 @@ void draw_pixel(int x, int y) {
   Color color = tracing(x, y);
   color += Color(0.1f, 0.1f, 0.1f); // add ambient light
   color.clamp();
-  plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
+
+  img[y][x][0] = color.r;
+  img[y][x][1] = color.g;
+  img[y][x][2] = color.b;
+
+  // std::cout << img[y][x][0] << '\n';
+
+  // plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
+}
+
+void multi_thread(int start_x, int end_x) {
+
+  for (unsigned int x = start_x; x < end_x && x < WIDTH; x++) {
+    for (unsigned int y = 0; y < HEIGHT; y++)
+    {
+      draw_pixel(x, y);
+    }
+
+  }
+
 }
 
 // MODIFY THIS FUNCTION
 void draw_scene()
 {
 
-  for (unsigned int x = 0; x < WIDTH; x++)
-  {
-    glPointSize(2.0);
-    glBegin(GL_POINTS);
+  int num_thread = std::thread::hardware_concurrency();
+  int cols_thread = WIDTH / num_thread;
+  std::thread threads[num_thread];
 
-    for (unsigned int y = 0; y < HEIGHT; y++)
-    {
-      draw_pixel(x, y);
-    }
+  std::cout << num_thread << '\n';
 
-    glEnd();
-    glFlush();
+  for (int i = 0; i < num_thread; ++i) {
+
+    int start_x = i * cols_thread;
+    int end_x = start_x + cols_thread;
+    threads[i] = std::thread(multi_thread, start_x, end_x);
+  }
+  
+  for (int i = 0; i < num_thread; ++i) {
+    threads[i].join();
   }
 
 
+
+  glPointSize(2.0);
+  glBegin(GL_POINTS);
+
+  for (unsigned int x = 0; x < WIDTH; x++)
+  {
+
+    for (unsigned int y = 0; y < HEIGHT; y++)
+    {
+      // draw_pixel(x, y);
+      // std::cout << img[y][x][0] << '\n';
+      plot_pixel(x, y, img[y][x][0] * 255, img[y][x][1] * 255, img[y][x][2] * 255);
+    }
+  }
+
+  glEnd();
+  glFlush();
 
   printf("Done!\n");
   fflush(stdout);
