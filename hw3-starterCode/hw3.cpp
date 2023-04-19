@@ -527,13 +527,13 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
     // create area light for softshadow
     Light &light = lights[i];
 
-    int x_count = 4, y_count = 4, z_count = 4;
+    int x_count = 10, y_count = 1, z_count = 10;
     float multiplier = 1.0f * x_count * y_count * z_count;
-    for (float x = -1.0f; x < 1.0f; x += 0.5)
+    for (float x = -1.0f; x < 1.0f; x += 0.2)
     {
-      for (float y = -1.0f; y < 1.0f; y += 0.5)
+      for (float y = 0.0f; y < 1.0f; y += 10.0f)
       {
-        for (float z = -1.0f; z < 1.0f; z += 0.5)
+        for (float z = -1.0f; z < 1.0f; z += 0.2)
         {
           Light new_light;
           new_light.position[0] = light.position[0] + x;
