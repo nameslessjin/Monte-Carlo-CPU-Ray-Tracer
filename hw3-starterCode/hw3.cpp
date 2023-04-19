@@ -26,6 +26,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <mutex>
+#include <atomic>
+#include "../helper/ThreadPool.hpp"
+
 #ifdef WIN32
 #define strcasecmp _stricmp
 #endif
@@ -51,8 +55,10 @@ int mode = MODE_DISPLAY;
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 7
+#define MAX_REFLECT 3
+#define ANTI_ALIASING_SAMPLE 9
 
+std::mutex mtx;
 unsigned char buffer[HEIGHT][WIDTH][3];
 float img[HEIGHT][WIDTH][3];
 
@@ -199,7 +205,6 @@ struct Ray
     dir = _dir;
     pos = _pos;
   }
-
 };
 
 void clamp(float &f);
@@ -223,7 +228,9 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection);
 void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time);
 void generate_ray(Ray &ray, int x, int y);
-void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y);
+void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples);
+void print_progress(int finished, int total);
+void draw_pixel(int x, int y, std::atomic<int> &finished);
 
 void clamp(float &f)
 {
@@ -258,21 +265,27 @@ void generate_ray(Ray &ray, int x, int y)
   ray.dir = glm::normalize(dirs);
 }
 
-void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y) {
+void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples)
+{
 
   float aspect_ratio = WIDTH * 1.0f / HEIGHT;
   float fov_rad = glm::radians(fov);
   float half_fov_tan = std::tan(fov_rad * 0.5f);
+  int rt_num_samples = sqrt(num_samples);
 
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < 4; ++j) {
-      float ndcX = (2.0f * (x + 0.125f + (i * 0.25f)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
-      float ndcY = (1.0f - 2.0f * (y + 0.125f + (j * 0.25f)) / (HEIGHT * 1.0f)) * half_fov_tan;
+  float increment = 1.0f / rt_num_samples;
+  float start = increment / 2;
+
+  for (int i = 0; i < rt_num_samples; ++i)
+  {
+    for (int j = 0; j < rt_num_samples; ++j)
+    {
+      float ndcX = (2.0f * (x + start + (i * increment)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float ndcY = (1.0f - 2.0f * (y + start + (j * increment)) / (HEIGHT * 1.0f)) * half_fov_tan;
       glm::vec3 dirs(ndcX, -ndcY, -1.0f);
-      rays[i * 4 + j].dir = glm::normalize(dirs);
+      rays[i * rt_num_samples + j].dir = glm::normalize(dirs);
     }
   }
-
 }
 
 float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c)
@@ -513,55 +526,59 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
 
     // create area light for softshadow
     Light &light = lights[i];
-    
-    float multiplier = 100.0f;
-    for (float x = -1.0f; x < 1.0f; x += 0.2) {
-      for (float z = -1.0f; z < 1.0f; z += 0.2) {
 
-        Light new_light;
-        new_light.position[0] = light.position[0] + x;
-        new_light.position[1] = light.position[1];
-        new_light.position[2] = light.position[2] + z;
-        new_light.color[0] = light.color[0] / multiplier;
-        new_light.color[1] = light.color[1] / multiplier;
-        new_light.color[2] = light.color[2] / multiplier;
-
-        // create shadow ray
-        glm::vec3 l_pos = vec3(new_light.position);
-        glm::vec3 shadow_ray_dir = glm::normalize(l_pos - intersection);
-        Ray shadow_ray(shadow_ray_dir, intersection);
-        bool blocked = false;
-
-        // check to see if shadow_ray is blocked by any spheres
-        for (int j = 0; j < num_spheres && !blocked; ++j)
+    int x_count = 4, y_count = 4, z_count = 4;
+    float multiplier = 1.0f * x_count * y_count * z_count;
+    for (float x = -1.0f; x < 1.0f; x += 0.5)
+    {
+      for (float y = -1.0f; y < 1.0f; y += 0.5)
+      {
+        for (float z = -1.0f; z < 1.0f; z += 0.5)
         {
-          if (check_block(shadow_ray, spheres[j], new_light, sphere_i, j))
+          Light new_light;
+          new_light.position[0] = light.position[0] + x;
+          new_light.position[1] = light.position[1] + y;
+          new_light.position[2] = light.position[2] + z;
+          new_light.color[0] = light.color[0] / multiplier;
+          new_light.color[1] = light.color[1] / multiplier;
+          new_light.color[2] = light.color[2] / multiplier;
+
+          // create shadow ray
+          glm::vec3 l_pos = vec3(new_light.position);
+          glm::vec3 shadow_ray_dir = glm::normalize(l_pos - intersection);
+          Ray shadow_ray(shadow_ray_dir, intersection);
+          bool blocked = false;
+
+          // check to see if shadow_ray is blocked by any spheres
+          for (int j = 0; j < num_spheres && !blocked; ++j)
           {
-            blocked = true;
+            if (check_block(shadow_ray, spheres[j], new_light, sphere_i, j))
+            {
+              blocked = true;
+            }
+          }
+
+          // check to see if shadow ray is blocked by any triangles
+          for (int j = 0; j < num_triangles && !blocked; ++j)
+          {
+            if (check_block(shadow_ray, triangles[j], new_light, triangle_i, j))
+            {
+              blocked = true;
+            }
+          }
+
+          // if the ray is not block then calculate phong shading
+          if (!blocked)
+          {
+            if (triangle_i == -1)
+              color += phong_shading(spheres[sphere_i], new_light, intersection);
+            else
+              color += phong_shading(triangles[triangle_i], new_light, intersection);
           }
         }
-
-        // check to see if shadow ray is blocked by any triangles
-        for (int j = 0; j < num_triangles && !blocked; ++j)
-        {
-          if (check_block(shadow_ray, triangles[j], new_light, triangle_i, j))
-          {
-            blocked = true;
-          }
-        }
-
-        // if the ray is not block then calculate phong shading
-        if (!blocked)
-        {
-          if (triangle_i == -1)
-            color += phong_shading(spheres[sphere_i], new_light, intersection);
-          else
-            color += phong_shading(triangles[triangle_i], new_light, intersection);
-        }
-      }
-
       }
     }
+  }
 }
 
 void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time)
@@ -697,25 +714,30 @@ Color tracing(int x, int y)
   // check_intersection(color, ray, -1, -1, MAX_REFLECT);
   // anti-aliasing with 16 rays per pixel
   Color color(0.0f, 0.0f, 0.0f);
+  int num_samples = ANTI_ALIASING_SAMPLE;
   std::vector<Ray> rays;
-  for (int i = 0; i < 16; ++i) {
+
+  for (int i = 0; i < num_samples; ++i)
+  {
     Ray ray;
     rays.push_back(ray);
   }
-  generate_ray_antialiasing(rays, x, y);
+  generate_ray_antialiasing(rays, x, y, num_samples);
 
-  for (int i = 0; i < 16; ++i) {
+  for (int i = 0; i < num_samples; ++i)
+  {
     Color c(1.0f, 1.0f, 1.0f);
     check_intersection(c, rays[i], -1, -1, MAX_REFLECT);
     color += c;
   }
 
-  color /= 16.0f;
+  color /= num_samples * 1.0f;
 
   return color;
 }
 
-void draw_pixel(int x, int y) {
+void draw_pixel(int x, int y, std::atomic<int> &finished)
+{
   Color color = tracing(x, y);
   color += Color(0.1f, 0.1f, 0.1f); // add ambient light
   color.clamp();
@@ -724,45 +746,63 @@ void draw_pixel(int x, int y) {
   img[y][x][1] = color.g;
   img[y][x][2] = color.b;
 
-  // std::cout << img[y][x][0] << '\n';
+  ++finished;
+  print_progress(finished, WIDTH * HEIGHT);
 
   // plot_pixel(x, y, color.r * 255, color.g * 255, color.b * 255);
 }
 
-void multi_thread(int start_x, int end_x) {
+void print_progress(int finished, int total)
+{
+  const int bar_width = 50;
+  float progress = static_cast<float>(finished) / total;
+  int pos = static_cast<int>(bar_width * progress);
 
-  for (unsigned int x = start_x; x < end_x && x < WIDTH; x++) {
-    for (unsigned int y = 0; y < HEIGHT; y++)
-    {
-      draw_pixel(x, y);
-    }
+  std::unique_lock<std::mutex> lock(mtx);
+  std::cout << "Redenering Progress: [";
 
+  for (int i = 0; i < bar_width; ++i)
+  {
+    if (i < pos)
+      std::cout << "=";
+    else if (i == pos)
+      std::cout << ">";
+    else
+      std::cout << " ";
   }
 
+  std::cout << "] " << finished << "/" << total << " (" << static_cast<int>(progress * 100.0) << "%)\r";
+  std::cout.flush();
+}
+
+void fill_image_plane() {
+  int num_threads = std::thread::hardware_concurrency();
+  std::atomic<int> finished(0);
+  int cols_thread = WIDTH / num_threads;
+  std::thread threads[num_threads];
+
+  print_progress(finished, WIDTH * HEIGHT);
+
+  ThreadPool thread_pool(num_threads);
+
+  for (unsigned int x = 0; x < WIDTH; ++x) {
+    for (unsigned int y = 0; y < HEIGHT; ++y) {
+      thread_pool.enqueue(draw_pixel, x, y, std::ref(finished));
+    }
+  }
+
+  thread_pool.wait();
+
+  // print final progress
+  print_progress(finished, WIDTH * HEIGHT);
+  std::cout << '\n';
 }
 
 // MODIFY THIS FUNCTION
 void draw_scene()
 {
 
-  int num_thread = std::thread::hardware_concurrency();
-  int cols_thread = WIDTH / num_thread;
-  std::thread threads[num_thread];
-
-  std::cout << num_thread << '\n';
-
-  for (int i = 0; i < num_thread; ++i) {
-
-    int start_x = i * cols_thread;
-    int end_x = start_x + cols_thread;
-    threads[i] = std::thread(multi_thread, start_x, end_x);
-  }
-  
-  for (int i = 0; i < num_thread; ++i) {
-    threads[i].join();
-  }
-
-
+  fill_image_plane();
 
   glPointSize(2.0);
   glBegin(GL_POINTS);
@@ -772,8 +812,6 @@ void draw_scene()
 
     for (unsigned int y = 0; y < HEIGHT; y++)
     {
-      // draw_pixel(x, y);
-      // std::cout << img[y][x][0] << '\n';
       plot_pixel(x, y, img[y][x][0] * 255, img[y][x][1] * 255, img[y][x][2] * 255);
     }
   }

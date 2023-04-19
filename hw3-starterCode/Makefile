@@ -6,8 +6,13 @@ IMAGE_LIB_SRC=$(wildcard ../external/imageIO/*.cpp)
 IMAGE_LIB_HEADER=$(wildcard ../external/imageIO/*.h)
 IMAGE_LIB_OBJ=$(notdir $(patsubst %.cpp,%.o,$(IMAGE_LIB_SRC)))
 
-HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER)
-CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ)
+THREAD_POOL_SRC=$(wildcard ../helper/ThreadPool.cpp)
+THREAD_POOL_HEADER=$(wildcard ../helper/*.hpp)
+THREAD_POOL_OBJ=$(notdir $(patsubst %.cpp,%.o,$(THREAD_POOL_SRC)))
+
+
+HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER) $(THREAD_POOL_HEADER)
+CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ) $(THREAD_POOL_OBJ)
 
 CXX=g++
 TARGET=hw3
@@ -18,12 +23,12 @@ UNAME_S=$(shell uname -s)
 
 ifeq ($(UNAME_S),Linux)
   PLATFORM=Linux
-  INCLUDE=-I../external/glm/ -I../external/imageIO
+  INCLUDE=-I../external/glm/ -I../external/imageIO -I../helper
   LIB=-lGLEW -lGL -lglut -ljpeg
   LDFLAGS=
 else
   PLATFORM=Mac OS
-  INCLUDE=-I../external/glm/ -I../external/imageIO -I../external/jpeg-9a-mac/include
+  INCLUDE=-I../external/glm/ -I../external/imageIO -I../external/jpeg-9a-mac/include -I../helper
   LIB=-framework OpenGL -framework GLUT ../external/jpeg-9a-mac/lib/libjpeg.a
   CXXFLAGS+= -Wno-deprecated-declarations
   LDFLAGS=-Wl,-w
@@ -38,6 +43,9 @@ $(HW3_OBJ):%.o: %.cpp $(HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
 $(IMAGE_LIB_OBJ):%.o: ../external/imageIO/%.cpp $(IMAGE_LIB_HEADER)
+	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
+
+$(THREAD_POOL_OBJ):%.o: ../helper/%.cpp $(THREAD_POOL_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
 clean:
