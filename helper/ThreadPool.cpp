@@ -81,3 +81,22 @@ void ThreadPool::wait()
 
 // Explicitly instantiate enqueue for the supported types
 template void ThreadPool::enqueue<void (&)(int, int, std::__1::atomic<int> &), unsigned int &, unsigned int &, std::__1::reference_wrapper<std::__1::atomic<int>>>(void (&)(int, int, std::__1::atomic<int> &), unsigned int &, unsigned int &, std::__1::reference_wrapper<std::__1::atomic<int>> &&);
+
+
+void print_progress(int finished, int total, std::mutex &mtx) {
+    const int bar_width = 50;
+    float progress = static_cast<float>(finished) / total;
+    int pos = static_cast<int>(bar_width * progress);
+
+    std::unique_lock<std::mutex> lock(mtx);
+    std::cout << "Rendering Progress: [";
+
+    for (int i = 0; i < bar_width; ++i) {
+        if (i < pos) std::cout << "=";
+        else if (i == pos) std::cout << ">";
+        else std::cout << " ";
+    }
+
+    std::cout << "] " << finished << "/" << total << " (" << static_cast<int>(progress * 100.0) << "%)\r";
+    
+}

@@ -1,18 +1,19 @@
 HW3_CXX_SRC=hw3.cpp
-HW3_HEADER=
+HW3_HEADER=hw3.hpp
 HW3_OBJ=$(notdir $(patsubst %.cpp,%.o,$(HW3_CXX_SRC)))
 
 IMAGE_LIB_SRC=$(wildcard ../external/imageIO/*.cpp)
 IMAGE_LIB_HEADER=$(wildcard ../external/imageIO/*.h)
 IMAGE_LIB_OBJ=$(notdir $(patsubst %.cpp,%.o,$(IMAGE_LIB_SRC)))
 
-THREAD_POOL_SRC=$(wildcard ../helper/ThreadPool.cpp)
-THREAD_POOL_HEADER=$(wildcard ../helper/*.hpp)
-THREAD_POOL_OBJ=$(notdir $(patsubst %.cpp,%.o,$(THREAD_POOL_SRC)))
+HELPER_SRC=$(wildcard ../helper/*.cpp)
+HELPER_HEADER=$(wildcard ../helper/*.hpp)
+HELPER_OBJ=$(notdir $(patsubst %.cpp,%.o,$(HELPER_SRC)))
 
 
-HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER) $(THREAD_POOL_HEADER)
-CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ) $(THREAD_POOL_OBJ)
+
+HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER) $(HELPER_HEADER)
+CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ) $(HELPER_OBJ)
 
 CXX=g++
 TARGET=hw3
@@ -45,7 +46,7 @@ $(HW3_OBJ):%.o: %.cpp $(HEADER)
 $(IMAGE_LIB_OBJ):%.o: ../external/imageIO/%.cpp $(IMAGE_LIB_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
-$(THREAD_POOL_OBJ):%.o: ../helper/%.cpp $(THREAD_POOL_HEADER)
+$(HELPER_OBJ):%.o: ../helper/%.cpp $(HELPER_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
 clean:

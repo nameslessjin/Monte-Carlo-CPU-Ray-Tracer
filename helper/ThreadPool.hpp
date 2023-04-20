@@ -30,4 +30,6 @@ private:
 
 };
 
+void print_progress(int finished, int total, std::mutex &mtx);
+
 #endif 
