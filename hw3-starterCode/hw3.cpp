@@ -49,14 +49,14 @@ char *filename = NULL;
 int mode = MODE_DISPLAY;
 
 // you may want to make these smaller for debugging purposes
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 640
+#define HEIGHT 480
 
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 3
-#define ANTI_ALIASING_SAMPLE 9
+#define MAX_REFLECT 5
+#define ANTI_ALIASING_SAMPLE 16
 
 std::mutex mtx;
 unsigned char buffer[HEIGHT][WIDTH][3];
