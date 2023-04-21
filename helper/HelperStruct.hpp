@@ -79,10 +79,18 @@ public:
 
   bool intersect(const Ray &ray, float t_min, float t_max);
   float surfaceArea();
+
+  // Binary Tree like HBV
+  AABB *left, *right;
 };
 
+glm::vec3 mergedMin(const AABB &aabb1, const AABB &aabb2);
+glm::vec3 mergedMax(const AABB &aabb1, const AABB &aabb2);
 float mergedSurfaceArea(const AABB &aabb1, const AABB &aabb2);
 float sahCost(AABB &aabb1, AABB &aabb2);
+std::vector<AABB> buildHVB(std::vector<AABB> &aabbs);
+std::pair<int,int> findBestPair(std::vector<AABB> &aabbs);
+
 
 glm::vec3 vec3(double *v3);
 
