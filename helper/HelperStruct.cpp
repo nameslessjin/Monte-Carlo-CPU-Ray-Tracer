@@ -97,3 +97,10 @@ void clamp(float &f)
   else if (f < 0.0f)
     f = 0.0f;
 }
+
+bool AABB::intersect(const Ray &ray, float t_min, float t_max) {
+
+    
+
+    return false;
+}

@@ -50,7 +50,7 @@ int mode = MODE_DISPLAY;
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 5
+#define MAX_REFLECT 1
 #define ANTI_ALIASING_SAMPLE 16
 
 std::mutex mtx;
@@ -65,7 +65,7 @@ double ambient_light[3];
 int num_triangles = 0;
 int num_spheres = 0;
 int num_lights = 0;
-float e = 1e-13;
+float e = 1e-4;
 
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
@@ -81,11 +81,11 @@ float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 bool point_triangle_xy(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c);
 bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c);
-bool check_block(Ray &r, Sphere &s, Light &l, int i, int j);
-bool check_block(Ray &r, Triangle &t, Light &l, int i, int j);
-Color check_intersection(Color &c, Ray &ray, int s_i, int t_i, int time);
+bool check_block(Ray &r, Sphere &s, Light &l);
+bool check_block(Ray &r, Triangle &t, Light &l);
+Color check_intersection(Color &c, Ray &ray, int time);
 glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec3 intersection);
-void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection);
+void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &intersection);
 void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time);
 void generate_ray(Ray &ray, int x, int y);
 void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples);

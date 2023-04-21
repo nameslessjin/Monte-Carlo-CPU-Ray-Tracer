@@ -103,6 +103,9 @@ bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::ve
     return false;
   intersection = r.pos + r.dir * t;
 
+  if (abs(glm::length(intersection) - glm::length(r.pos)) < e)
+    return false;
+
   // check if the intersection is inside the polygon with 2d projection against x-y plane
   glm::vec3 c = intersection;
   bool in_xy = point_triangle_xy(c0, c1, c2, c);
@@ -119,9 +122,9 @@ bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &in
   float a = 1.0f;
   float b = 2 * (r.dir[0] * x0_xc + r.dir[1] * y0_yc + r.dir[2] * z0_zc);
   float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
-  float bc = pow(b, 2) - 4 * c;
+  float bc = pow(b, 2) - 4 * a * c;
 
-  if (bc < 0)
+  if (bc < 0.0f)
     return false;
 
   float t0 = (-b + sqrt(bc)) / (2 * a);
@@ -141,6 +144,9 @@ bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &in
   }
 
   intersection = r.pos + r.dir * t;
+
+  if (abs(glm::length(intersection) - glm::length(r.pos)) < e)
+    return false;
 
   return true;
 }
@@ -200,7 +206,7 @@ Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection)
   return calc_phong_shading(l_dir, l_color, v);
 }
 
-bool check_block(Ray &r, Sphere &s, Light &l, int i, int j)
+bool check_block(Ray &r, Sphere &s, Light &l)
 {
 
   glm::vec3 shadow_ray_intersection;
@@ -208,7 +214,7 @@ bool check_block(Ray &r, Sphere &s, Light &l, int i, int j)
   glm::vec3 l_pos = vec3(l.position);
 
   // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
-  if (check_single_sphere_intersection(r, s, tmp_t, shadow_ray_intersection) && i != j)
+  if (check_single_sphere_intersection(r, s, tmp_t, shadow_ray_intersection))
   {
     float intersection_to_light = glm::length(l_pos - r.pos);
     float intersection_to_shadow_intersect = glm::length(shadow_ray_intersection - r.pos);
@@ -223,7 +229,7 @@ bool check_block(Ray &r, Sphere &s, Light &l, int i, int j)
   return false;
 }
 
-bool check_block(Ray &r, Triangle &t, Light &l, int i, int j)
+bool check_block(Ray &r, Triangle &t, Light &l)
 {
 
   glm::vec3 shadow_ray_intersection;
@@ -231,7 +237,7 @@ bool check_block(Ray &r, Triangle &t, Light &l, int i, int j)
   glm::vec3 l_pos = vec3(l.position);
 
   // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
-  if (check_single_triangle_intersection(r, t, tmp_t, shadow_ray_intersection) && i != j)
+  if (check_single_triangle_intersection(r, t, tmp_t, shadow_ray_intersection))
   {
     float intersection_to_light = glm::length(l_pos - r.pos);
     float intersection_to_shadow_intersect = glm::length(shadow_ray_intersection - r.pos);
@@ -273,7 +279,7 @@ GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection)
   return vertex;
 }
 
-void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 intersection)
+void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &intersection)
 {
 
   color = Color();
@@ -310,7 +316,7 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
           // check to see if shadow_ray is blocked by any spheres
           for (int j = 0; j < num_spheres && !blocked; ++j)
           {
-            if (check_block(shadow_ray, spheres[j], new_light, sphere_i, j))
+            if (check_block(shadow_ray, spheres[j], new_light))
             {
               blocked = true;
             }
@@ -319,7 +325,7 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 inter
           // check to see if shadow ray is blocked by any triangles
           for (int j = 0; j < num_triangles && !blocked; ++j)
           {
-            if (check_block(shadow_ray, triangles[j], new_light, triangle_i, j))
+            if (check_block(shadow_ray, triangles[j], new_light))
             {
               blocked = true;
             }
@@ -348,7 +354,7 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
     glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
     Ray reflect_ray(r, intersection);
     Color color;
-    Color reflect_color = check_intersection(color, reflect_ray, sphere_i, triangle_i, time - 1);
+    Color reflect_color = check_intersection(color, reflect_ray, time - 1);
     glm::vec3 ks;
 
     if (sphere_i != -1)
@@ -367,7 +373,7 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
   }
 }
 
-Color check_intersection(Color &c, Ray &ray, int s_i, int t_i, int time)
+Color check_intersection(Color &c, Ray &ray, int time)
 {
   float sphere_t = 0.0f, triangle_t = 0.0f;
   int sphere_i = -1, triangle_i = -1;
@@ -379,8 +385,6 @@ Color check_intersection(Color &c, Ray &ray, int s_i, int t_i, int time)
   {
     float tmp_t = -1.0f;
 
-    if (i == s_i)
-      continue;
     if (!check_single_sphere_intersection(ray, spheres[i], tmp_t, s_intersection))
       continue;
 
@@ -397,8 +401,6 @@ Color check_intersection(Color &c, Ray &ray, int s_i, int t_i, int time)
   {
     float tmp_t = -1.0f;
 
-    if (i == t_i)
-      continue;
     if (!check_single_triangle_intersection(ray, triangles[i], tmp_t, t_intersection))
       continue;
 
@@ -485,7 +487,7 @@ Color tracing(int x, int y)
   for (int i = 0; i < num_samples; ++i)
   {
     Color c(1.0f, 1.0f, 1.0f);
-    check_intersection(c, rays[i], -1, -1, MAX_REFLECT);
+    check_intersection(c, rays[i], MAX_REFLECT);
     color += c;
   }
 

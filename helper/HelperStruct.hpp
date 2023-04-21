@@ -70,6 +70,14 @@ struct Ray
   Ray(glm::vec3 _dir, glm::vec3 _pos);
 };
 
+class AABB {
+  glm::vec3 min, max;
+  AABB() : min(glm::vec3()), max(glm::vec3()) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max) {}
+
+  bool intersect(const Ray &ray, float t_min, float t_max);
+};
+
 glm::vec3 vec3(double *v3);
 
 glm::vec3 vec3(float a, float b, float c);
