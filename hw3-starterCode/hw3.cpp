@@ -7,6 +7,99 @@
 
 #include "hw3.hpp"
 
+glm::vec3 maxPointSphere(Sphere &s) {
+  glm::vec3 center = vec3(s.position);
+  float r = s.radius;
+  glm::vec3 addition = vec3(r, r, r);
+  return center + addition;
+}
+
+glm::vec3 minPointSphere(Sphere &s) {
+  glm::vec3 center = vec3(s.position);
+  float r = s.radius;
+  glm::vec3 subtraction = vec3(-r, -r, -r);
+  return center + subtraction;
+}
+
+glm::vec3 maxPointTriangle(Triangle &t) {
+  Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
+  
+  return glm::vec3(
+      std::max({v0.position[0], v1.position[0], v2.position[0]}),
+      std::max({v0.position[1], v1.position[1], v2.position[1]}),
+      std::max({v0.position[2], v1.position[2], v2.position[2]})
+  );
+}
+
+glm::vec3 minPointTriangle(Triangle &t) {
+  Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
+  
+  return glm::vec3(
+      std::min({v0.position[0], v1.position[0], v2.position[0]}),
+      std::min({v0.position[1], v1.position[1], v2.position[1]}),
+      std::min({v0.position[2], v1.position[2], v2.position[2]})
+  );
+}
+
+int countHBV(AABB *hbv) {
+
+  int count = 0;
+
+  if (!hbv) return count;
+
+  std::cout << "parent: \n";
+  hbv->print();
+  if (hbv->left) {
+    std::cout << "left children: \n";
+    hbv->left->print();
+  }
+  if (hbv->right) {
+    std::cout << "right children: \n";
+    hbv->right->print();
+  }
+
+  ++count;
+  count += countHBV(hbv->left);
+  count += countHBV(hbv->right);
+
+  return count;
+}
+
+void contructHVB() {
+  for (int i = 0; i < num_spheres; ++i) {
+    Sphere &s = spheres[i];
+    glm::vec3 sphere_min = minPointSphere(s);
+    glm::vec3 sphere_max = maxPointSphere(s);
+    AABB aabb(sphere_min, sphere_max);
+    all_aabbs.push_back(aabb);
+  }
+
+  for (int i = 0; i < num_triangles; ++i) {
+    Triangle &t = triangles[i];
+    glm::vec3 t_min = minPointTriangle(t);
+    glm::vec3 t_max = maxPointTriangle(t);
+    AABB aabb(t_min, t_max);
+    all_aabbs.push_back(aabb);
+  }
+
+  for (int i = 0; i < all_aabbs.size(); ++i) {
+    all_aabbs[i].print();
+  }
+
+  std::cout << "num all_aabbs: " << all_aabbs.size() << '\n';
+  std::vector<AABB> hbv = buildHVB(all_aabbs);
+
+  if (hbv.size() == 1) {
+    HBV = &hbv[0];
+    int count = countHBV(HBV);    
+    std::cout << "succ " << count << '\n';
+  } else if (hbv.size() == 0) {
+    std::cout << "empty\n";
+  } else {
+    std::cout << "suck\n";
+  }
+
+}
 
 void generate_ray(Ray &ray, int x, int y)
 {
@@ -536,7 +629,7 @@ void fill_image_plane() {
 // MODIFY THIS FUNCTION
 void draw_scene()
 {
-
+  contructHVB();
   fill_image_plane();
 
   glPointSize(2.0);

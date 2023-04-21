@@ -2,6 +2,7 @@
 #define HELPER_STRUCT_HPP
 
 #include <glm/glm.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <iostream>
 #include <stdio.h>
 
@@ -43,7 +44,6 @@ struct Light
   double color[3];
 };
 
-
 struct Color
 {
   float r, g, b;
@@ -59,7 +59,6 @@ struct Color
   Color operator+(Color const &c);
   Color operator*(glm::vec3 vec3);
   Color operator/=(float f);
-
 };
 
 struct Ray
@@ -71,17 +70,18 @@ struct Ray
   Ray(glm::vec3 _dir, glm::vec3 _pos);
 };
 
-class AABB {
+class AABB
+{
 public:
   glm::vec3 min, max;
-  AABB() : min(glm::vec3()), max(glm::vec3()) {}
-  AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max) {}
+  AABB *left, *right; // Binary Tree like HBV
+  AABB() : min(glm::vec3()), max(glm::vec3()), left(nullptr), right(nullptr) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max), left(nullptr), right(nullptr) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max, AABB *left, AABB *right) : min(min), max(max), left(left), right(right) {}
 
   bool intersect(const Ray &ray, float t_min, float t_max);
   float surfaceArea();
-
-  // Binary Tree like HBV
-  AABB *left, *right;
+  void print();
 };
 
 glm::vec3 mergedMin(const AABB &aabb1, const AABB &aabb2);
@@ -89,8 +89,7 @@ glm::vec3 mergedMax(const AABB &aabb1, const AABB &aabb2);
 float mergedSurfaceArea(const AABB &aabb1, const AABB &aabb2);
 float sahCost(AABB &aabb1, AABB &aabb2);
 std::vector<AABB> buildHVB(std::vector<AABB> &aabbs);
-std::pair<int,int> findBestPair(std::vector<AABB> &aabbs);
-
+std::pair<int, int> findBestPair(std::vector<AABB> &aabbs);
 
 glm::vec3 vec3(double *v3);
 

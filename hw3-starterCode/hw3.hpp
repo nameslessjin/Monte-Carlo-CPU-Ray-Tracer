@@ -60,6 +60,8 @@ float img[HEIGHT][WIDTH][3];
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
+std::vector<AABB> all_aabbs;
+AABB *HBV;
 double ambient_light[3];
 
 int num_triangles = 0;
@@ -67,6 +69,11 @@ int num_spheres = 0;
 int num_lights = 0;
 float e = 1e-4;
 
+glm::vec3 maxPointTriangle(Triangle &t);
+glm::vec3 minPointTriangle(Triangle &t);
+glm::vec3 maxPointSphere(Sphere &s);
+glm::vec3 minPointSphere(Sphere &s);
+void contructHVB();
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b);

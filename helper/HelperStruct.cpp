@@ -134,6 +134,10 @@ bool AABB::intersect(const Ray &ray, float t_min, float t_max)
     return true;
 }
 
+void AABB::print() {
+    std::cout << "min: " << glm::to_string(min) << " max: " << glm::to_string(max) << '\n';
+}
+
 /* calculate the surface area of the AABB */
 float AABB::surfaceArea()
 {
@@ -211,13 +215,15 @@ std::vector<AABB> buildHVB(std::vector<AABB> &aabbs)
     while (aabbs.size() > 1)
     {
         std::pair<int, int> best = findBestPair(aabbs);
-        AABB aabb1 = aabbs[best.first];
-        AABB aabb2 = aabbs[best.second];
+        AABB &aabb1 = aabbs[best.first];
+        AABB *aabb1_new = new AABB(aabb1);
+        AABB &aabb2 = aabbs[best.second];
+        AABB *aabb2_new = new AABB(aabb2);
         glm::vec3 merged_min = mergedMin(aabb1, aabb2);
         glm::vec3 merged_max = mergedMax(aabb1, aabb2);
         AABB parent(merged_min, merged_max);
-        parent.left = &aabb1;
-        parent.right = &aabb2;
+        parent.left = aabb1_new;
+        parent.right = aabb2_new;
 
         parent_aabbs.push_back(parent);
         
