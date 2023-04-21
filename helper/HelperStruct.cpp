@@ -129,3 +129,39 @@ bool AABB::intersect(const Ray &ray, float t_min, float t_max) {
 
     return true;
 }
+
+/* calculate the surface area of the AABB */
+float AABB::surfaceArea() {
+    glm::vec3 extents = max - min;
+    return 2 * (extents.x * extents.y + extents.x * extents.z + extents.y * extents.z);
+}
+
+float mergedSurfaceArea(const AABB &aabb1, const AABB &aabb2) {
+
+    // create a newly merged AABB
+    glm::vec3 merged_min(
+        std::min(aabb1.min.x, aabb2.min.x),
+        std::min(aabb1.min.y, aabb2.min.y),
+        std::min(aabb1.min.z, aabb2.min.z)
+    );
+    glm::vec3 merged_max(
+        std::max(aabb1.max.x, aabb2.max.x),
+        std::max(aabb1.max.y, aabb2.max.y),
+        std::max(aabb1.max.z, aabb2.max.z)
+    );
+
+    AABB merged(merged_min, merged_max);
+    
+    return merged.surfaceArea();
+}
+
+/*
+    SAH(Surface Area Heuristic) 
+    The underlying assumption behind SAH cost is that the probability of a ray (or any other 
+    spatial query) intersecting a bounding volume is proportional to its surface area. 
+    Thus, minimizing the SAH cost leads to a more efficient spatial data structure by 
+    reducing the expected number of intersection tests required.
+*/
+float sahCost(AABB &aabb1, AABB &aabb2) {
+    return mergedSurfaceArea(aabb1, aabb2) - aabb1.surfaceArea() - aabb2.surfaceArea();
+}

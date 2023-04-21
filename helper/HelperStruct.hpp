@@ -3,6 +3,7 @@
 
 #include <glm/glm.hpp>
 #include <iostream>
+#include <stdio.h>
 
 struct Vertex
 {
@@ -71,12 +72,17 @@ struct Ray
 };
 
 class AABB {
+public:
   glm::vec3 min, max;
   AABB() : min(glm::vec3()), max(glm::vec3()) {}
   AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max) {}
 
   bool intersect(const Ray &ray, float t_min, float t_max);
+  float surfaceArea();
 };
+
+float mergedSurfaceArea(const AABB &aabb1, const AABB &aabb2);
+float sahCost(AABB &aabb1, AABB &aabb2);
 
 glm::vec3 vec3(double *v3);
 
