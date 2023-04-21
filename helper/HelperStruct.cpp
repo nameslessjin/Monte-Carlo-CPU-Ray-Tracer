@@ -100,7 +100,32 @@ void clamp(float &f)
 
 bool AABB::intersect(const Ray &ray, float t_min, float t_max) {
 
-    
+    // t_min and t_max are the min and max intersection bounds
 
-    return false;
+    for (int i = 0; i < 3; ++i) {
+        float inv_dir = 1.0f / ray.dir[i];
+
+        // Calculate the intersection points along the current axis
+        // these points represent entry and exit of the ray intersecting the AABB
+        // on the current axis
+        float t0 = (min[i] - ray.pos[i]) * inv_dir;
+        float t1 = (max[i] - ray.pos[i]) * inv_dir;
+
+        // swap if the inverse direction is negative
+        if (inv_dir < 0.0f) std::swap(t0, t1);
+
+        // update the overall intersection bounds
+        t_min = t0 > t_min ? t0 : t_min;
+        t_max = t1 < t_max ? t1 : t_max;
+
+        // if t_max is less than or equal to t_min, there's no intersection
+        // this occurs when the ray completely misses the AABB
+        // or when the ray's direction is parallel to one of the AABB's faces
+        // and is outside the box
+        if (t_max <= t_min) {
+            return false;
+        }
+    }
+
+    return true;
 }

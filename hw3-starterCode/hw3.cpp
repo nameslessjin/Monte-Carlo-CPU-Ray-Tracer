@@ -263,7 +263,6 @@ GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection)
   // barycentric interpolation
   float c_c1_c2 = calc_triangle_area(c, c1, c2);
   float c0_c_c2 = calc_triangle_area(c0, c, c2);
-  float c0_c1_c = calc_triangle_area(c0, c1, c);
   float c0_c1_c2 = calc_triangle_area(c0, c1, c2);
 
   float alpha = c_c1_c2 / c0_c1_c2;
