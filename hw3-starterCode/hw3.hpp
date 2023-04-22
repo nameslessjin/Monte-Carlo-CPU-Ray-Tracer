@@ -22,6 +22,7 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
+#include <queue>
 #include "../helper/ThreadPool.hpp"
 #include "../helper/HelperStruct.hpp"
 
@@ -53,6 +54,7 @@ int mode = MODE_DISPLAY;
 #define MAX_REFLECT 0
 #define ANTI_ALIASING_SAMPLE 16
 
+using minAABBHeap = std::priority_queue<AABB *, std::vector<AABB *>, std::greater<AABB *>>;
 std::mutex mtx;
 unsigned char buffer[HEIGHT][WIDTH][3];
 float img[HEIGHT][WIDTH][3];
@@ -74,8 +76,10 @@ glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);
 glm::vec3 maxPointSphere(Sphere &s);
 glm::vec3 minPointSphere(Sphere &s);
-bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray);
+bool isAABB1Closer(AABB *aabb1, AABB *aabb2, Ray &ray);
+bool checkIntersectionWithAABB(AABB *aabb, minAABBHeap &intersected_aabbs, Ray &ray);
 void contructHVB();
+bool find_close_object(Ray &ray, std::vector<int> &sphere_indexes, std::vector<int> &triangle_indexes);
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b);

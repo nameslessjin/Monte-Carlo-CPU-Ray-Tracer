@@ -137,7 +137,12 @@ bool AABB::intersect(const Ray &ray)
 }
 
 void AABB::print() {
-    std::cout << "min: " << glm::to_string(min) << " max: " << glm::to_string(max) << '\n';
+    std::cout << "sphere_i: " << sphere_i << " triangle_i: " << triangle_i 
+    << " min: " << glm::to_string(min) << " max: " << glm::to_string(max) << '\n';
+}
+
+bool AABB::operator>(const AABB *(&aabb)) {
+    return min.z > aabb->min.z;
 }
 
 /* calculate the surface area of the AABB */
@@ -211,6 +216,9 @@ std::pair<int, int> findBestPair(std::vector<AABB> &aabbs)
 
 std::vector<AABB> buildHVB(std::vector<AABB> &aabbs)
 {
+    // std::cout << aabbs.size() << '\n';
+    // for (AABB aabb: aabbs) aabb.print();
+
     if (aabbs.size() == 1 || aabbs.size() == 0) return aabbs;
 
     std::vector<AABB> parent_aabbs;
@@ -229,15 +237,28 @@ std::vector<AABB> buildHVB(std::vector<AABB> &aabbs)
 
         parent_aabbs.push_back(parent);
         
-        aabbs[best.first] = aabbs[aabbs.size() - 2];
-        aabbs[best.second] = aabbs[aabbs.size() - 1];
+        std::swap(aabbs[best.first], aabbs[aabbs.size() - 1]);
         aabbs.pop_back();
+        std::swap(aabbs[best.second], aabbs[aabbs.size() - 1]);
         aabbs.pop_back();
     }
 
     if (aabbs.size() == 1) {
         parent_aabbs.push_back(aabbs[0]);
     }
+
+    // for (AABB parent: parent_aabbs) {
+    //     std::cout << "parent: \n";
+    //     parent.print();
+    //     if (parent.left) {
+    //         std::cout << "left: \n";
+    //         parent.left->print();
+    //     }
+    //     if (parent.right) {
+    //         std::cout << "right: \n";
+    //         parent.right->print();
+    //     }
+    // }
 
     return buildHVB(parent_aabbs);
 }

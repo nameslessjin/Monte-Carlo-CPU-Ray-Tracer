@@ -85,6 +85,7 @@ public:
   bool intersect(const Ray &ray);
   float surfaceArea();
   void print();
+  bool operator>(const AABB *(&aabb));
 };
 
 glm::vec3 mergedMin(const AABB &aabb1, const AABB &aabb2);
