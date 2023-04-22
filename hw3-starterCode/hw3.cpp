@@ -419,25 +419,37 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &inte
           Ray shadow_ray(shadow_ray_dir, intersection);
           bool blocked = false;
 
-          // check to see if shadow_ray is blocked by any spheres
-          for (int j = 0; j < num_spheres; ++j)
-          {
-            if (blocked) break;
-            if (check_block(shadow_ray, spheres[j], new_light))
-            {
-              blocked = true;
-            }
+          AABB *intersected_aabb;
+          bool has_intersection = checkIntersectionWithAABB(HBV, intersected_aabb, shadow_ray);
+
+          // check to see if shadow_ray is blocked by any spheres or triangles
+          if (has_intersection) {
+            int sphere_j = intersected_aabb->sphere_i;
+            int triangle_j = intersected_aabb->triangle_i;
+
+            if (check_block(shadow_ray, spheres[sphere_j], new_light)) blocked = true;
+            if (check_block(shadow_ray, triangles[triangle_j], new_light)) blocked = true;
           }
 
-          // check to see if shadow ray is blocked by any triangles
-          for (int j = 0; j < num_triangles; ++j)
-          {
-            if (blocked) break;
-            if (check_block(shadow_ray, triangles[j], new_light))
-            {
-              blocked = true;
-            }
-          }
+          // // check to see if shadow_ray is blocked by any spheres
+          // for (int j = 0; j < num_spheres; ++j)
+          // {
+          //   if (blocked) break;
+          //   if (check_block(shadow_ray, spheres[j], new_light))
+          //   {
+          //     blocked = true;
+          //   }
+          // }
+
+          // // check to see if shadow ray is blocked by any triangles
+          // for (int j = 0; j < num_triangles; ++j)
+          // {
+          //   if (blocked) break;
+          //   if (check_block(shadow_ray, triangles[j], new_light))
+          //   {
+          //     blocked = true;
+          //   }
+          // }
 
           // if the ray is not block then calculate phong shading
           if (!blocked)
@@ -483,33 +495,28 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
 
 bool isAABB1Closer(AABB *aabb1, AABB *aabb2, Ray &ray) {
 
+  if (!aabb1) return false;
 
-  int sphere_t_1 = aabb1->sphere_i;
-  int triangle_t_1 = aabb1->triangle_i;
   bool aabb1_intersect = false;
   float intersection_t_1;
-  float distance1;
   glm::vec3 interaction1;
 
-  if (sphere_t_1 != -1) {
-    aabb1_intersect = check_single_sphere_intersection(ray, spheres[sphere_t_1], intersection_t_1, interaction1);
+  if (aabb1->sphere_i != -1) {
+    aabb1_intersect = check_single_sphere_intersection(ray, spheres[aabb1->sphere_i], intersection_t_1, interaction1);
   }
-  if (triangle_t_1 != -1) {
-    aabb1_intersect = check_single_triangle_intersection(ray, triangles[triangle_t_1], intersection_t_1, interaction1);
+  if (aabb1->triangle_i != -1) {
+    aabb1_intersect = check_single_triangle_intersection(ray, triangles[aabb1->triangle_i], intersection_t_1, interaction1);
   }
 
-  int sphere_t_2 = aabb2->sphere_i;
-  int triangle_t_2 = aabb2->triangle_i;
   bool aabb2_intersect = false;
   float intersection_t_2;
-  float distance2;
   glm::vec3 interaction2;
 
-  if (sphere_t_2 != -1) {
-    aabb2_intersect = check_single_sphere_intersection(ray, spheres[sphere_t_2], intersection_t_2, interaction2);
+  if (aabb2->sphere_i != -1) {
+    aabb2_intersect = check_single_sphere_intersection(ray, spheres[aabb2->sphere_i], intersection_t_2, interaction2);
   }
-  if (triangle_t_2 != -1) {
-    aabb2_intersect = check_single_triangle_intersection(ray, triangles[triangle_t_2], intersection_t_2, interaction2);
+  if (aabb2->triangle_i != -1) {
+    aabb2_intersect = check_single_triangle_intersection(ray, triangles[aabb2->triangle_i], intersection_t_2, interaction2);
   }
 
   // if ray intersects with both objects, pick the one takes less time
@@ -537,9 +544,10 @@ bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray)
   // if ray intersecting with a left return true
   if (!aabb->left && !aabb->right)
   {
-    if (!intersected_aabb || (intersected_aabb && !isAABB1Closer(intersected_aabb, aabb, ray))) {
+    if (!isAABB1Closer(intersected_aabb, aabb, ray)) {
       intersected_aabb = aabb;
     }
+    
     return true;
   }
 
@@ -574,15 +582,17 @@ Color check_intersection(Color &c, Ray &ray, int time)
   triangle_i = intersected_aabb->triangle_i;
 
   if (sphere_i != -1 && check_single_sphere_intersection(ray, spheres[sphere_i], tmp_t, s_intersection)) {
-      sphere_t = tmp_t;
+  } else {
+    sphere_i = -1;
   }
 
   if (triangle_i != -1 && check_single_triangle_intersection(ray, triangles[triangle_i], tmp_t, t_intersection)) {
-    triangle_t = tmp_t;
+  } else {
+    triangle_i = -1;
   }
 
-  s_intersection = ray.pos + ray.dir * sphere_t;
-  t_intersection = ray.pos + ray.dir * triangle_t;
+  s_intersection = ray.pos + ray.dir * tmp_t;
+  t_intersection = ray.pos + ray.dir * tmp_t;
 
   if (triangle_i == -1 && sphere_i != -1)
   {
