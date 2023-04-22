@@ -98,10 +98,12 @@ void clamp(float &f)
         f = 0.0f;
 }
 
-bool AABB::intersect(const Ray &ray, float t_min, float t_max)
+bool AABB::intersect(const Ray &ray)
 {
 
     // t_min and t_max are the min and max intersection bounds
+    float t_min = 0.0f;
+    float t_max = std::numeric_limits<float>::max();
 
     for (int i = 0; i < 3; ++i)
     {

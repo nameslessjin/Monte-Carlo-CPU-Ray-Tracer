@@ -7,98 +7,112 @@
 
 #include "hw3.hpp"
 
-glm::vec3 maxPointSphere(Sphere &s) {
+glm::vec3 maxPointSphere(Sphere &s)
+{
   glm::vec3 center = vec3(s.position);
   float r = s.radius;
   glm::vec3 addition = vec3(r, r, r);
-  return center + addition;
+  glm::vec3 error = vec3(sigma, sigma, sigma);
+  return center + addition + error;
 }
 
-glm::vec3 minPointSphere(Sphere &s) {
+glm::vec3 minPointSphere(Sphere &s)
+{
   glm::vec3 center = vec3(s.position);
   float r = s.radius;
   glm::vec3 subtraction = vec3(-r, -r, -r);
-  return center + subtraction;
+  glm::vec3 error = vec3(sigma, sigma, sigma);
+  return center + subtraction - error;
 }
 
-glm::vec3 maxPointTriangle(Triangle &t) {
+glm::vec3 maxPointTriangle(Triangle &t)
+{
   Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
-  
-  return glm::vec3(
-      std::max({v0.position[0], v1.position[0], v2.position[0]}),
-      std::max({v0.position[1], v1.position[1], v2.position[1]}),
-      std::max({v0.position[2], v1.position[2], v2.position[2]})
-  );
+  glm::vec3 pos(std::max({v0.position[0], v1.position[0], v2.position[0]}),
+                std::max({v0.position[1], v1.position[1], v2.position[1]}),
+                std::max({v0.position[2], v1.position[2], v2.position[2]}));
+  glm::vec3 error = vec3(sigma, sigma, sigma);
+
+  return pos + sigma;
 }
 
-glm::vec3 minPointTriangle(Triangle &t) {
+glm::vec3 minPointTriangle(Triangle &t)
+{
   Vertex v0 = t.v[0], v1 = t.v[1], v2 = t.v[2];
-  
-  return glm::vec3(
+  glm::vec3 pos(
       std::min({v0.position[0], v1.position[0], v2.position[0]}),
       std::min({v0.position[1], v1.position[1], v2.position[1]}),
-      std::min({v0.position[2], v1.position[2], v2.position[2]})
-  );
+      std::min({v0.position[2], v1.position[2], v2.position[2]}));
+  glm::vec3 error = vec3(sigma, sigma, sigma);
+  return pos - error;
 }
 
-int countHBV(AABB *hbv) {
+int countHBV(AABB *hbv, int level)
+{
 
   int count = 0;
 
-  if (!hbv) return count;
+  if (!hbv)
+    return count;
 
-  std::cout << "parent: \n";
+  std::cout << "parent: , level: " << level << '\n';
   hbv->print();
-  if (hbv->left) {
+  if (hbv->left)
+  {
     std::cout << "left children: \n";
     hbv->left->print();
   }
-  if (hbv->right) {
+  if (hbv->right)
+  {
     std::cout << "right children: \n";
     hbv->right->print();
   }
 
   ++count;
-  count += countHBV(hbv->left);
-  count += countHBV(hbv->right);
+  count += countHBV(hbv->left, level + 1);
+  count += countHBV(hbv->right, level + 1);
 
   return count;
 }
 
-void contructHVB() {
-  for (int i = 0; i < num_spheres; ++i) {
+void contructHVB()
+{
+  for (int i = 0; i < num_spheres; ++i)
+  {
     Sphere &s = spheres[i];
     glm::vec3 sphere_min = minPointSphere(s);
     glm::vec3 sphere_max = maxPointSphere(s);
-    AABB aabb(sphere_min, sphere_max);
+    AABB aabb(sphere_min, sphere_max, i, -1);
     all_aabbs.push_back(aabb);
   }
 
-  for (int i = 0; i < num_triangles; ++i) {
+  for (int i = 0; i < num_triangles; ++i)
+  {
     Triangle &t = triangles[i];
     glm::vec3 t_min = minPointTriangle(t);
     glm::vec3 t_max = maxPointTriangle(t);
-    AABB aabb(t_min, t_max);
+    AABB aabb(t_min, t_max, -1, i);
     all_aabbs.push_back(aabb);
   }
 
-  for (int i = 0; i < all_aabbs.size(); ++i) {
-    all_aabbs[i].print();
-  }
+  // for (int i = 0; i < all_aabbs.size(); ++i) {
+  //   all_aabbs[i].print();
+  // }
 
   std::cout << "num all_aabbs: " << all_aabbs.size() << '\n';
   std::vector<AABB> hbv = buildHVB(all_aabbs);
 
-  if (hbv.size() == 1) {
-    HBV = &hbv[0];
-    int count = countHBV(HBV);    
-    std::cout << "succ " << count << '\n';
-  } else if (hbv.size() == 0) {
-    std::cout << "empty\n";
-  } else {
-    std::cout << "suck\n";
+  if (hbv.size() == 1)
+  {
+    HBV = new AABB(hbv[0]);
+    int count = countHBV(HBV, 0);
+    // std::cout << "succ " << count << '\n';
   }
-
+  // else if (hbv.size() == 0) {
+  //   std::cout << "empty\n";
+  // } else {
+  //   std::cout << "suck\n";
+  // }
 }
 
 void generate_ray(Ray &ray, int x, int y)
@@ -405,22 +419,25 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &inte
           Ray shadow_ray(shadow_ray_dir, intersection);
           bool blocked = false;
 
-          // check to see if shadow_ray is blocked by any spheres
-          for (int j = 0; j < num_spheres && !blocked; ++j)
+          AABB *intersected_aabb = nullptr;
+          bool intersected = checkIntersectionWithAABB(HBV, intersected_aabb, shadow_ray);
+
+          int block_sphere_i = -1;
+          int block_triangle_i = -1;
+
+          if (intersected)
           {
-            if (check_block(shadow_ray, spheres[j], new_light))
-            {
-              blocked = true;
-            }
+            block_sphere_i = intersected_aabb->sphere_i;
+            block_triangle_i = intersected_aabb->triangle_i;
           }
 
-          // check to see if shadow ray is blocked by any triangles
-          for (int j = 0; j < num_triangles && !blocked; ++j)
+          if (block_sphere_i != -1 && check_block(shadow_ray, spheres[block_sphere_i], new_light))
           {
-            if (check_block(shadow_ray, triangles[j], new_light))
-            {
-              blocked = true;
-            }
+            blocked = true;
+          }
+          if (block_triangle_i != -1 && check_block(shadow_ray, triangles[block_triangle_i], new_light))
+          {
+            blocked = true;
           }
 
           // if the ray is not block then calculate phong shading
@@ -465,42 +482,82 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
   }
 }
 
+bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray)
+{
+
+  // if aabb is null or ray doesn't intersection with it return false
+  if (!aabb || !aabb->intersect(ray))
+    return false;
+
+  // if ray intersecting with a left return true
+  if (!aabb->left && !aabb->right)
+  {
+    intersected_aabb = aabb;
+    return true;
+  }
+
+  bool left_intersection = false, right_intersection = false;
+
+  if (aabb->left)
+  {
+    left_intersection = checkIntersectionWithAABB(aabb->left, intersected_aabb, ray);
+  }
+  if (aabb->right)
+  {
+    right_intersection = checkIntersectionWithAABB(aabb->right, intersected_aabb, ray);
+  }
+
+  return left_intersection || right_intersection;
+}
+
 Color check_intersection(Color &c, Ray &ray, int time)
 {
   float sphere_t = 0.0f, triangle_t = 0.0f;
   int sphere_i = -1, triangle_i = -1;
   Color &color = c;
   glm::vec3 s_intersection, t_intersection;
+  float tmp_t = -1.0f;
 
-  // find the closest sphere intersect with ray
-  for (int i = 0; i < num_spheres; ++i)
+  AABB *intersected_aabb = nullptr;
+
+  bool intersected = checkIntersectionWithAABB(HBV, intersected_aabb, ray);
+
+  // if (intersected)
+  // {
+  //   std::cout << "intersected" << '\n';
+  //   intersected_aabb->print();
+  // }
+
+  // if there is no interaction with any AABB, return default color
+  if (!intersected)
+    return color;
+
+  sphere_i = intersected_aabb->sphere_i;
+  triangle_i = intersected_aabb->triangle_i;
+
+  if (sphere_i != -1)
   {
-    float tmp_t = -1.0f;
-
-    if (!check_single_sphere_intersection(ray, spheres[i], tmp_t, s_intersection))
-      continue;
-
-    // calculate the intersection in the smallest t
-    if (tmp_t < sphere_t || sphere_i == -1)
+    tmp_t = -1.0f;
+    if (check_single_sphere_intersection(ray, spheres[sphere_i], tmp_t, s_intersection))
     {
       sphere_t = tmp_t;
-      sphere_i = i;
+    }
+    else
+    {
+      sphere_i = -1;
     }
   }
 
-  // find the cloest triangle intersection with ray
-  for (int i = 0; i < num_triangles; ++i)
+  if (triangle_i != -1)
   {
-    float tmp_t = -1.0f;
-
-    if (!check_single_triangle_intersection(ray, triangles[i], tmp_t, t_intersection))
-      continue;
-
-    // calculate the intersection in the smallest t
-    if (tmp_t < triangle_t || triangle_i == -1)
+    tmp_t = -1.0f;
+    if (check_single_triangle_intersection(ray, triangles[triangle_i], tmp_t, t_intersection))
     {
       triangle_t = tmp_t;
-      triangle_i = i;
+    }
+    else
+    {
+      triangle_i = -1;
     }
   }
 
@@ -600,10 +657,10 @@ void draw_pixel(int x, int y, std::atomic<int> &finished)
 
   ++finished;
   print_progress(finished, WIDTH * HEIGHT, mtx);
-
 }
 
-void fill_image_plane() {
+void fill_image_plane()
+{
   int num_threads = std::thread::hardware_concurrency();
   std::atomic<int> finished(0);
   int cols_thread = WIDTH / num_threads;
@@ -613,8 +670,11 @@ void fill_image_plane() {
 
   ThreadPool thread_pool(num_threads);
 
-  for (unsigned int x = 0; x < WIDTH; ++x) {
-    for (unsigned int y = 0; y < HEIGHT; ++y) {
+  // HBV->print();
+  for (unsigned int x = 0; x < WIDTH; ++x)
+  {
+    for (unsigned int y = 0; y < HEIGHT; ++y)
+    {
       thread_pool.enqueue(draw_pixel, x, y, std::ref(finished));
     }
   }

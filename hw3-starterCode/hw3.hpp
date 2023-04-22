@@ -50,7 +50,7 @@ int mode = MODE_DISPLAY;
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 1
+#define MAX_REFLECT 0
 #define ANTI_ALIASING_SAMPLE 16
 
 std::mutex mtx;
@@ -68,11 +68,13 @@ int num_triangles = 0;
 int num_spheres = 0;
 int num_lights = 0;
 float e = 1e-4;
+float sigma = 1e-5;
 
 glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);
 glm::vec3 maxPointSphere(Sphere &s);
 glm::vec3 minPointSphere(Sphere &s);
+bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray);
 void contructHVB();
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);

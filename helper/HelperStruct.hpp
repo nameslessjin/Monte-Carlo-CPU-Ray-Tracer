@@ -74,12 +74,15 @@ class AABB
 {
 public:
   glm::vec3 min, max;
+  int sphere_i;
+  int triangle_i;
   AABB *left, *right; // Binary Tree like HBV
-  AABB() : min(glm::vec3()), max(glm::vec3()), left(nullptr), right(nullptr) {}
-  AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max), left(nullptr), right(nullptr) {}
-  AABB(const glm::vec3 &min, const glm::vec3 &max, AABB *left, AABB *right) : min(min), max(max), left(left), right(right) {}
+  AABB() : min(glm::vec3()), max(glm::vec3()), left(nullptr), right(nullptr), sphere_i(-1), triangle_i(-1) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max), left(nullptr), right(nullptr), sphere_i(-1), triangle_i(-1) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max, int sphere_i, int triangle_i) : min(min), max(max), left(nullptr), right(nullptr), sphere_i(sphere_i), triangle_i(triangle_i) {}
+  AABB(const glm::vec3 &min, const glm::vec3 &max, int sphere_i, int triangle_i, AABB *left, AABB *right) : min(min), max(max), sphere_i(sphere_i), triangle_i(triangle_i), left(left), right(right) {}
 
-  bool intersect(const Ray &ray, float t_min, float t_max);
+  bool intersect(const Ray &ray);
   float surfaceArea();
   void print();
 };
