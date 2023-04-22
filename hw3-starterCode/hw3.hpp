@@ -51,7 +51,7 @@ int mode = MODE_DISPLAY;
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 0
+#define MAX_REFLECT 3
 #define ANTI_ALIASING_SAMPLE 16
 
 using minAABBHeap = std::priority_queue<AABB *, std::vector<AABB *>, std::greater<AABB *>>;
@@ -76,8 +76,8 @@ glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);
 glm::vec3 maxPointSphere(Sphere &s);
 glm::vec3 minPointSphere(Sphere &s);
-bool isAABB1Closer(AABB *aabb1, AABB *aabb2, Ray &ray);
-bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray);
+AABB *pickCloserAABB(AABB *aabb1, AABB *aabb2, const Ray &ray);
+AABB *checkIntersectionWithAABB(AABB *aabb, const Ray &ray);
 void contructHVB();
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
@@ -86,8 +86,8 @@ GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection);
 Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection);
 Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection);
 Color calc_phong_shading(glm::vec3 l_dir, glm::vec3 l_color, GLM_Vertex vertex);
-bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection);
-bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection);
+bool check_single_sphere_intersection(const Ray &r, Sphere &s, float &t, glm::vec3 &intersection);
+bool check_single_triangle_intersection(const Ray &r, Triangle &tri, float &t, glm::vec3 &intersection);
 float calc_triangle_area_xy(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c);
 float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c);

@@ -99,20 +99,12 @@ void contructHVB()
   //   all_aabbs[i].print();
   // }
 
-  std::cout << "num all_aabbs: " << all_aabbs.size() << '\n';
   std::vector<AABB> hbv = buildHVB(all_aabbs);
 
   if (hbv.size() == 1)
   {
     HBV = new AABB(hbv[0]);
-    // int count = countHBV(HBV, 0);
-    // std::cout << "succ " << count << '\n';
   }
-  // else if (hbv.size() == 0) {
-  //   std::cout << "empty\n";
-  // } else {
-  //   std::cout << "suck\n";
-  // }
 }
 
 void generate_ray(Ray &ray, int x, int y)
@@ -188,7 +180,7 @@ bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c)
   return alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f;
 }
 
-bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::vec3 &intersection)
+bool check_single_triangle_intersection(const Ray &r, Triangle &tri, float &t, glm::vec3 &intersection)
 {
 
   glm::vec3 c0 = vec3(tri.v[0].position);
@@ -220,7 +212,7 @@ bool check_single_triangle_intersection(Ray &r, Triangle &tri, float &t, glm::ve
   return in_xy || in_xz;
 }
 
-bool check_single_sphere_intersection(Ray &r, Sphere &s, float &t, glm::vec3 &intersection)
+bool check_single_sphere_intersection(const Ray &r, Sphere &s, float &t, glm::vec3 &intersection)
 {
 
   float x0_xc = r.pos.x - s.position[0];
@@ -419,37 +411,16 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &inte
           Ray shadow_ray(shadow_ray_dir, intersection);
           bool blocked = false;
 
-          AABB *intersected_aabb;
-          bool has_intersection = checkIntersectionWithAABB(HBV, intersected_aabb, shadow_ray);
+          AABB *intersected_aabb = checkIntersectionWithAABB(HBV, shadow_ray);
 
           // check to see if shadow_ray is blocked by any spheres or triangles
-          if (has_intersection) {
+          if (intersected_aabb) {
             int sphere_j = intersected_aabb->sphere_i;
             int triangle_j = intersected_aabb->triangle_i;
 
             if (check_block(shadow_ray, spheres[sphere_j], new_light)) blocked = true;
             if (check_block(shadow_ray, triangles[triangle_j], new_light)) blocked = true;
           }
-
-          // // check to see if shadow_ray is blocked by any spheres
-          // for (int j = 0; j < num_spheres; ++j)
-          // {
-          //   if (blocked) break;
-          //   if (check_block(shadow_ray, spheres[j], new_light))
-          //   {
-          //     blocked = true;
-          //   }
-          // }
-
-          // // check to see if shadow ray is blocked by any triangles
-          // for (int j = 0; j < num_triangles; ++j)
-          // {
-          //   if (blocked) break;
-          //   if (check_block(shadow_ray, triangles[j], new_light))
-          //   {
-          //     blocked = true;
-          //   }
-          // }
 
           // if the ray is not block then calculate phong shading
           if (!blocked)
@@ -493,9 +464,10 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
   }
 }
 
-bool isAABB1Closer(AABB *aabb1, AABB *aabb2, Ray &ray) {
+AABB *pickCloserAABB(AABB *aabb1, AABB *aabb2, const Ray &ray) {
 
-  if (!aabb1) return false;
+  if (!aabb1) return aabb2;
+  if (!aabb2) return aabb1;
 
   bool aabb1_intersect = false;
   float intersection_t_1;
@@ -521,97 +493,72 @@ bool isAABB1Closer(AABB *aabb1, AABB *aabb2, Ray &ray) {
 
   // if ray intersects with both objects, pick the one takes less time
   if (aabb1_intersect && aabb2_intersect) {
-    return intersection_t_1 < intersection_t_2;
+    return intersection_t_1 < intersection_t_2 ? aabb1 : aabb2;
   }
 
   // if ray doesn't not intersect with object 1 return false
-  if (!aabb1_intersect && aabb2_intersect) return false;
+  if (!aabb1_intersect && aabb2_intersect) return aabb2;
 
   // if ray doesn't not intersect with object 2 return false
-  if (aabb1_intersect && !aabb2_intersect) return true;
+  if (aabb1_intersect && !aabb2_intersect) return aabb1;
 
-  return true;
+  return aabb1;
 
 }
 
-bool checkIntersectionWithAABB(AABB *aabb, AABB *(&intersected_aabb), Ray &ray)
+AABB *checkIntersectionWithAABB(AABB *aabb, const Ray &ray)
 {
 
   // if aabb is null or ray doesn't intersection with it return false
   if (!aabb || !aabb->intersect(ray))
-    return false;
+    return nullptr;
 
   // if ray intersecting with a left return true
   if (!aabb->left && !aabb->right)
   {
-    if (!isAABB1Closer(intersected_aabb, aabb, ray)) {
-      intersected_aabb = aabb;
-    }
-    
-    return true;
+    return aabb;
   }
 
-  bool left_intersection = false, right_intersection = false;
+  AABB *left_intersection, *right_intersection;
 
   if (aabb->left)
   {
-    left_intersection = checkIntersectionWithAABB(aabb->left, intersected_aabb, ray);
+    left_intersection = checkIntersectionWithAABB(aabb->left, ray);
   }
   if (aabb->right)
   {
-    right_intersection = checkIntersectionWithAABB(aabb->right, intersected_aabb, ray);
+    right_intersection = checkIntersectionWithAABB(aabb->right, ray);
   }
 
-  return left_intersection || right_intersection;
+  return pickCloserAABB(left_intersection, right_intersection, ray);
 }
 
 Color check_intersection(Color &c, Ray &ray, int time)
 {
-  float sphere_t = 0.0f, triangle_t = 0.0f;
   int sphere_i = -1, triangle_i = -1;
   Color &color = c;
   glm::vec3 s_intersection, t_intersection;
-  float tmp_t = -1.0f;
+  float intersection_t = -1.0f;
 
-  AABB *intersected_aabb;
-  bool has_intersection = checkIntersectionWithAABB(HBV, intersected_aabb, ray);
+  AABB *intersected_aabb = checkIntersectionWithAABB(HBV, ray);
 
-  if (!has_intersection) return color;
+  if (!intersected_aabb) return color;
 
   sphere_i = intersected_aabb->sphere_i;
   triangle_i = intersected_aabb->triangle_i;
 
-  if (sphere_i != -1 && check_single_sphere_intersection(ray, spheres[sphere_i], tmp_t, s_intersection)) {
+  if (sphere_i != -1 && check_single_sphere_intersection(ray, spheres[sphere_i], intersection_t, s_intersection)) {
+    s_intersection = ray.pos + ray.dir * intersection_t;
+    calc_ray_color(color, sphere_i, -1, s_intersection, ray, time);
   } else {
     sphere_i = -1;
   }
 
-  if (triangle_i != -1 && check_single_triangle_intersection(ray, triangles[triangle_i], tmp_t, t_intersection)) {
+  if (triangle_i != -1 && check_single_triangle_intersection(ray, triangles[triangle_i], intersection_t, t_intersection)) {
+    t_intersection = ray.pos + ray.dir * intersection_t;
+    calc_ray_color(color, -1, triangle_i, t_intersection, ray, time);
   } else {
     triangle_i = -1;
-  }
-
-  s_intersection = ray.pos + ray.dir * tmp_t;
-  t_intersection = ray.pos + ray.dir * tmp_t;
-
-  if (triangle_i == -1 && sphere_i != -1)
-  {
-    calc_ray_color(color, sphere_i, -1, s_intersection, ray, time);
-  }
-  else if (triangle_i != -1 && sphere_i == -1)
-  {
-    calc_ray_color(color, -1, triangle_i, t_intersection, ray, time);
-  }
-  else if (triangle_i != -1 && sphere_i != -1)
-  {
-    if (sphere_t < triangle_t)
-    {
-      calc_ray_color(color, sphere_i, -1, s_intersection, ray, time);
-    }
-    else
-    {
-      calc_ray_color(color, -1, triangle_i, t_intersection, ray, time);
-    }
   }
 
   return color;
@@ -645,12 +592,6 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
 
 Color tracing(int x, int y)
 {
-  // single ray per pixel
-  // Color color(1.0f, 1.0f, 1.0f);
-
-  // Ray ray;
-  // generate_ray(ray, x, y);
-  // check_intersection(color, ray, -1, -1, MAX_REFLECT);
   // anti-aliasing with 16 rays per pixel
   Color color(0.0f, 0.0f, 0.0f);
   int num_samples = ANTI_ALIASING_SAMPLE;

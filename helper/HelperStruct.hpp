@@ -68,6 +68,8 @@ struct Ray
 
   Ray();
   Ray(glm::vec3 _dir, glm::vec3 _pos);
+
+  void print();
 };
 
 class AABB

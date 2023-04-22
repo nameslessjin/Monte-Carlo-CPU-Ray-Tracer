@@ -80,6 +80,11 @@ Ray::Ray(glm::vec3 _dir, glm::vec3 _pos)
     pos = _pos;
 }
 
+void Ray::print() {
+    std::cout << "dir: " << glm::to_string(dir) 
+    << " pos: " << glm::to_string(pos) << '\n';
+}
+
 glm::vec3 vec3(double *v3)
 {
     return glm::vec3(v3[0], v3[1], v3[2]);
