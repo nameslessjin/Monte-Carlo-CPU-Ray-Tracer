@@ -60,6 +60,11 @@ Color Color::operator*(glm::vec3 vec3)
     return Color(r * vec3.r, g * vec3.g, b * vec3.b);
 }
 
+Color Color::operator/(Color const &c)
+{
+    return Color(r / c.r, g / c.g, b / c.b);
+}
+
 Color Color::operator/=(float f)
 {
     r /= f;

@@ -77,7 +77,8 @@ int countHBV(AABB *hbv, int level)
 
 void contructHVB()
 {
-  for (int i = 0; i < num_spheres; ++i)
+  std::cout << "contruct HVB  num_spheres: " << spheres.size() << " num_triangles: " << triangles.size() << '\n';
+  for (int i = 0; i < spheres.size(); ++i)
   {
     Sphere &s = spheres[i];
     glm::vec3 sphere_min = minPointSphere(s);
@@ -86,7 +87,7 @@ void contructHVB()
     all_aabbs.push_back(aabb);
   }
 
-  for (int i = 0; i < num_triangles; ++i)
+  for (int i = 0; i < triangles.size(); ++i)
   {
     Triangle &t = triangles[i];
     glm::vec3 t_min = minPointTriangle(t);
@@ -174,6 +175,13 @@ float calc_triangle_area_xz(glm::vec3 a, glm::vec3 b, glm::vec3 c)
 float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c)
 {
   return 0.5f * glm::length(glm::cross(b - a, c - a));
+}
+
+float calcLightArea(Light &light) {
+  glm::vec3 p0 = vec3(light.p[0]), p1 = vec3(light.p[1]), p2 = vec3(light.p[2]), p3 = vec3(light.p[3]);
+  float triangle_area1 = calc_triangle_area(p0, p1, p2);
+  float triangle_area2 = calc_triangle_area(p0, p2, p3);
+  return triangle_area1 + triangle_area2;
 }
 
 bool point_triangle_xy(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c)
@@ -308,6 +316,38 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection)
   return calc_phong_shading(l_dir, l_color, v);
 }
 
+std::vector<glm::vec3> randomPointsInQuadrilateral(Light &light) {
+
+  glm::vec3 p0 = vec3(light.p[0]), p1 = vec3(light.p[1]), p2 = vec3(light.p[2]), p3 = vec3(light.p[3]);
+  float triangle_area1 = calc_triangle_area(p0, p1, p2);
+  float triangle_area2 = calc_triangle_area(p0, p2, p3);
+  float total_area = triangle_area1 + triangle_area2;
+
+  std::random_device rd;
+  std::mt19937 eng;
+  std::uniform_real_distribution<float> distrib(0.0, 1.0 - 1e-8);
+
+  std::vector<glm::vec3> random_ps;
+
+  for (int i = 0; i < LIGHT_SAMPLES; ++i) {
+    float r1 = distrib(eng);
+    float r2 = distrib(eng);
+    float r3 = distrib(eng);
+
+    bool choose_triangle1 = r3 < triangle_area1 / total_area;
+
+    glm::vec3 a, b, c;
+
+    if (choose_triangle1) a = p0, b = p1, c = p2;
+    else a = p0, b = p2, c = p3;
+
+    glm::vec3 p = (1 - sqrt(r1)) * a + (sqrt(r1) * (1 - r2)) * b + (sqrt(r1) * r2) * c;
+    random_ps.push_back(p);
+  }
+
+  return random_ps;
+}
+
 Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection)
 {
 
@@ -316,7 +356,7 @@ Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection)
   glm::vec3 l_dir = glm::normalize(l_pos - intersection);
 
   // barycentric interpolation
-  GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
+  GLM_Vertex v = calcGLMVertex(t, intersection);
 
   return calc_phong_shading(l_dir, l_color, v);
 }
@@ -343,46 +383,48 @@ glm::vec3 shadowRayColor(Ray &shadow_ray, Light &light) {
   return color;
 }
 
-Color calculateMonteCarlo() {
+Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
 
+  glm::vec3 intersection = v.position, object_n = v.n, albedo = v.kd, F0_vec3 = vec3(F0);
+  float metallic = v.metallic, roughness = v.roughness;
+  glm::vec3 light_n = vec3(light.normal);
+  float total_light_area = calcLightArea(light);
+
+  std::vector<glm::vec3> random_ps = randomPointsInQuadrilateral(light);
   Color color;
 
-  // should already know
-  Light light;
-  glm::vec3 intersection, object_n, light_n, albedo;
-  float total_light_area, metallic, roughness, F0;
+  for (const glm::vec3 &l_pos : random_ps) {
+    glm::vec3 w_i = glm::normalize(l_pos - intersection);
+    glm::vec3 w_o = glm::normalize(-intersection);
+    Ray shadow_ray(w_i, intersection);
+    glm::vec3 le;
 
-  glm::vec3 l_pos = vec3(light.position);
+    float w_i_dot_object_n = glm::dot(w_i, object_n);
 
-  glm::vec3 w_i = glm::normalize(l_pos - intersection);
-  glm::vec3 w_o = glm::normalize(-intersection);
-  Ray shadow_ray(w_i, intersection);
-  glm::vec3 le;
+    // check if the ray is blocked, if so le = 0, else the color of the light
+    if (w_i_dot_object_n <= sigma) le = glm::vec3(0,0,0);
+    else le = shadowRayColor(shadow_ray, light);
 
-  float w_i_dot_object_n = glm::dot(w_i, object_n);
+    float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
 
-  // check if the ray is blocked, if so le = 0, else the color of the light
-  if (w_i_dot_object_n <= sigma) le = glm::vec3(0,0,0);
-  else le = shadowRayColor(shadow_ray, light);
+    MonteCarlo mc;
+    mc.p = intersection;
+    mc.w_i = w_i;
+    mc.w_o = w_o;
+    mc.albedo = albedo;
+    mc.light = light;
+    mc.n = object_n;
+    mc.metallic = metallic;
+    mc.roughness = roughness;
+    mc.F0 = F0_vec3;
 
+    glm::vec3 brdf = calculateBRDF(mc);
 
-  float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
+    glm::vec3 c = le * brdf * w_i_dot_object_n / pdf;
+    color += Color(c);
+  }
 
-  MonteCarlo mc;
-  mc.p = intersection;
-  mc.w_i = w_i;
-  mc.w_o = w_o;
-  mc.albedo = albedo;
-  mc.light = light;
-  mc.n = object_n;
-  mc.metallic = metallic;
-  mc.roughness = roughness;
-  mc.F0 = F0;
-
-  glm::vec3 brdf = calculateBRDF(mc);
-
-  glm::vec3 c = le * brdf * w_i_dot_object_n / pdf;
-  color = Color(c);
+  color /= LIGHT_SAMPLES * 1.0f;
 
   return color;
 
@@ -391,26 +433,42 @@ Color calculateMonteCarlo() {
 glm::vec3 calculateBRDF(const MonteCarlo &mc) {
 
   glm::vec3 albedo = mc.albedo;
-  float fd = calculateFD(mc);
-  float fs = calculateFS(mc);
+  glm::vec3 fd = calculateFD(mc);
+  glm::vec3 fs = calculateFS(mc);
 
   return (fs + fd) * albedo;
 }
 
-float calculateFS(const MonteCarlo &mc) {
+glm::vec3 calculateFS(const MonteCarlo &mc) {
 
   float w_i_dot_n = glm::dot(mc.w_i, mc.n);
   float w_o_dot_n = glm::dot(mc.w_o, mc.n);
 
   glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
-  float w_o_dot_h = glm::dot(mc.w_o, h);
+  glm::vec3 one_sub_f0 = glm::vec3(1, 1, 1) - mc.F0;
 
-  float F = mc.F0 + (1 - mc.F0) * pow((1 - w_o_dot_h), 5);
+  glm::vec3 F = calculateF(mc);
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
 
   return (F * G * D) / (4 * w_i_dot_n * w_o_dot_n);
 }
+
+glm::vec3 calculateF(const MonteCarlo &mc) {
+
+  float w_i_dot_n = glm::dot(mc.w_i, mc.n);
+  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+  float w_o_dot_h = glm::dot(mc.w_o, h);
+
+  glm::vec3 one_sub_f0 = glm::vec3(1, 1, 1) - mc.F0;
+  float multi = pow((1 - w_o_dot_h), 5);
+  glm::vec3 multi_vec3 = glm::vec3(multi, multi, multi);
+
+  glm::vec3 F = mc.F0 + one_sub_f0 * multi_vec3;
+
+  return F;
+}
+
 float calculateD(const MonteCarlo &mc, const glm::vec3 &m) {
 
   float alpha = pow(mc.roughness, 2);
@@ -419,7 +477,7 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m) {
 
   float theta_m = findAngleRad(m, mc.n);
   
-  float deno = M_PI * pow(glm::cos(theta_m * pow(alpha_sq + pow(glm::tan(theta_m), 2), 2)), 4);
+  float deno = M_PI * pow(glm::cos(theta_m), 4) * pow(alpha_sq + pow(glm::tan(theta_m), 2), 2);
 
   return alpha_sq * pos / deno;
 }
@@ -446,7 +504,7 @@ float findAngleRad(const glm::vec3 &u, const glm::vec3 &v) {
   return glm::acos( glm::dot(glm::normalize(u), glm::normalize(v)));
 }
 
-float calculateFD(const MonteCarlo &mc) {
+glm::vec3 calculateFD(const MonteCarlo &mc) {
 
   float w_i_dot_n = glm::dot(mc.w_i, mc.n);
   float w_o_dot_n = glm::dot(mc.w_o, mc.n);
@@ -455,8 +513,10 @@ float calculateFD(const MonteCarlo &mc) {
 
   float F_D90 = 2 * pow(glm::dot(h, mc.w_i), 2) * mc.roughness + 0.5;
   float one_over_pi = 1.0f / M_PI;
+  float fd = one_over_pi * (1 + (F_D90 - 1) * (1 - pow(w_i_dot_n, 5))) * (1 + (F_D90 - 1) * (1 - pow(w_o_dot_n, 5))) * (1 - mc.metallic);
+  glm::vec3 fd_vec3 = glm::vec3(fd, fd, fd);
 
-  return one_over_pi * (1 + (F_D90 - 1) * (1 - pow(w_i_dot_n, 5))) * (1 + (F_D90 - 1) * (1 - pow(w_o_dot_n, 5))) * (1 - mc.metallic);
+  return fd_vec3;
 
 }
 
@@ -506,7 +566,7 @@ bool check_block(Ray &r, Triangle &t, Light &l)
   return false;
 }
 
-GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection)
+GLM_Vertex calcGLMVertex(Triangle &t, glm::vec3 &intersection)
 {
 
   GLM_Vertex vertex;
@@ -525,69 +585,54 @@ GLM_Vertex calc_barycentric_interpolation(Triangle &t, glm::vec3 &intersection)
 
   vertex.n = glm::normalize(alpha * vec3(v0.normal) + beta * vec3(v1.normal) + gamma * vec3(v2.normal));
   vertex.kd = alpha * vec3(v0.color_diffuse) + beta * vec3(v1.color_diffuse) + gamma * vec3(v2.color_diffuse);
+  vertex.position = intersection;
+  vertex.roughness = alpha * v0.roughness + beta * v1.roughness + gamma * v2.roughness;
+  vertex.metallic = alpha * v0.metallic + beta * v1.metallic + gamma * v2.metallic;
+
+  // not used in monte carlo
   vertex.ks = alpha * vec3(v0.color_specular) + beta * vec3(v1.color_specular) + gamma * vec3(v2.color_specular);
   vertex.shininess = alpha * v0.shininess + beta * v1.shininess + gamma * v2.shininess;
-  vertex.position = intersection;
 
   return vertex;
+}
+
+GLM_Vertex calcGLMVertex(Sphere &s, glm::vec3 &intersection) {
+
+    GLM_Vertex vertex;
+
+    vertex.position = intersection;
+    vertex.roughness = s.roughness;
+    vertex.metallic = s.metallic;
+    vertex.kd = vec3(s.color_diffuse);
+    vertex.n = glm::normalize(intersection - vec3(s.position));
+
+    return vertex;
 }
 
 void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &intersection)
 {
 
   color = Color();
-
   // check out each light source
-  for (int i = 0; i < num_lights; ++i)
+  for (int i = 0; i < lights.size(); ++i)
   {
 
-    // create area light for softshadow
+    // pick an area light
     Light &light = lights[i];
 
-    int x_count = 10, y_count = 1, z_count = 10;
-    float multiplier = 1.0f * x_count * y_count * z_count;
-    for (float x = -1.0f; x < 1.0f; x += 0.2)
+    // need to pick a light point of area light but for now we can just use pos
+    GLM_Vertex v;
+    if (sphere_i != -1)
     {
-      for (float y = 0.0f; y < 1.0f; y += 10.0f)
-      {
-        for (float z = -1.0f; z < 1.0f; z += 0.2)
-        {
-          Light new_light;
-          new_light.position[0] = light.position[0] + x;
-          new_light.position[1] = light.position[1] + y;
-          new_light.position[2] = light.position[2] + z;
-          new_light.color[0] = light.color[0] / multiplier;
-          new_light.color[1] = light.color[1] / multiplier;
-          new_light.color[2] = light.color[2] / multiplier;
-
-          // create shadow ray
-          glm::vec3 l_pos = vec3(new_light.position);
-          glm::vec3 shadow_ray_dir = glm::normalize(l_pos - intersection);
-          Ray shadow_ray(shadow_ray_dir, intersection);
-          bool blocked = false;
-
-          AABB *intersected_aabb = checkIntersectionWithAABB(HBV, shadow_ray);
-
-          // check to see if shadow_ray is blocked by any spheres or triangles
-          if (intersected_aabb) {
-            int sphere_j = intersected_aabb->sphere_i;
-            int triangle_j = intersected_aabb->triangle_i;
-
-            if (check_block(shadow_ray, spheres[sphere_j], new_light)) blocked = true;
-            if (check_block(shadow_ray, triangles[triangle_j], new_light)) blocked = true;
-          }
-
-          // if the ray is not block then calculate phong shading
-          if (!blocked)
-          {
-            if (triangle_i == -1)
-              color += phong_shading(spheres[sphere_i], new_light, intersection);
-            else
-              color += phong_shading(triangles[triangle_i], new_light, intersection);
-          }
-        }
-      }
+      Sphere &s = spheres[sphere_i];
+      v = calcGLMVertex(s, intersection);
     }
+    else
+    {
+      Triangle &t = triangles[triangle_i];
+      v = calcGLMVertex(t, intersection);
+    }
+    color += calculateMonteCarlo(v, light);
   }
 }
 
@@ -595,28 +640,28 @@ void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersecti
 {
   calc_shadow_ray(c, sphere_i, triangle_i, intersection);
 
-  if (time > 0)
-  {
-    glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
-    Ray reflect_ray(r, intersection);
-    Color color;
-    Color reflect_color = check_intersection(color, reflect_ray, time - 1);
-    glm::vec3 ks;
+  // if (time > 0)
+  // {
+  //   glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
+  //   Ray reflect_ray(r, intersection);
+  //   Color color;
+  //   Color reflect_color = check_intersection(color, reflect_ray, time - 1);
+  //   glm::vec3 ks;
 
-    if (sphere_i != -1)
-    {
-      Sphere &s = spheres[sphere_i];
-      ks = vec3(s.color_specular);
-    }
-    else
-    {
-      Triangle &t = triangles[triangle_i];
-      GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
-      ks = v.ks;
-    }
+  //   if (sphere_i != -1)
+  //   {
+  //     Sphere &s = spheres[sphere_i];
+  //     ks = vec3(s.color_specular);
+  //   }
+  //   else
+  //   {
+  //     Triangle &t = triangles[triangle_i];
+  //     GLM_Vertex v = calcGLMVertex(t, intersection);
+  //     ks = v.ks;
+  //   }
 
-    c = c * (1.0f - ks) + reflect_color * ks;
-  }
+  //   c = c * (1.0f - ks) + reflect_color * ks;
+  // }
 }
 
 AABB *pickCloserAABB(AABB *aabb1, AABB *aabb2, const Ray &ray) {
@@ -733,7 +778,7 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
   {
     Triangle &t = triangles[triangle_i];
 
-    GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
+    GLM_Vertex v = calcGLMVertex(t, intersection);
     n = v.n;
   }
 
@@ -767,6 +812,7 @@ Color tracing(int x, int y)
   }
 
   color /= num_samples * 1.0f;
+  // color = color / (color + vec3(1, 1, 1));
 
   return color;
 }
@@ -870,21 +916,39 @@ void save_jpg()
 
 void parse_check(const char *expected, char *found)
 {
-  if (strcasecmp(expected, found))
-  {
+  if (strcasecmp(expected, found)) {
     printf("Expected '%s ' found '%s '\n", expected, found);
     printf("Parse error, abnormal abortion\n");
-    exit(0);
+    exit(1);
   }
 }
 
 void parse_doubles(FILE *file, const char *check, double p[3])
 {
-  char str[100];
-  fscanf(file, "%s", str);
+  char str[512];
+  int ret = fscanf(file, "%s", str);
+  ASERT(ret == 1);
+
   parse_check(check, str);
-  fscanf(file, "%lf %lf %lf", &p[0], &p[1], &p[2]);
+
+  ret = fscanf(file, "%lf %lf %lf", &p[0], &p[1], &p[2]);
+  ASERT(ret == 3);
+
   printf("%s %lf %lf %lf\n", check, p[0], p[1], p[2]);
+}
+
+void parse_double(FILE *file, const char *check, double &r)
+{
+  char str[512];
+  int ret = fscanf(file, "%s", str);
+  ASERT(ret == 1);
+
+  parse_check(check, str);
+
+  ret = fscanf(file, "%lf", &r);
+  ASERT(ret == 1);
+
+  printf("%s %f\n", check, r);
 }
 
 void parse_rad(FILE *file, double *r)
@@ -905,75 +969,82 @@ void parse_shi(FILE *file, double *shi)
   printf("shi: %f\n", *shi);
 }
 
-int loadScene(char *argv)
+int loadScene(const char *filename)
 {
-  FILE *file = fopen(argv, "r");
+  FILE *file = fopen(filename, "r");
   int number_of_objects;
-  char type[50];
+  char type[50] = { 0 };
   Triangle t;
   Sphere s;
   Light l;
-  fscanf(file, "%i", &number_of_objects);
+
+  int ret = fscanf(file, "%i", &number_of_objects);
+  ASERT(ret == 1);
 
   printf("number of objects: %i\n", number_of_objects);
 
   parse_doubles(file, "amb:", ambient_light);
 
-  for (int i = 0; i < number_of_objects; i++)
-  {
-    fscanf(file, "%s\n", type);
-    printf("%s\n", type);
-    if (strcasecmp(type, "triangle") == 0)
-    {
+  parse_doubles(file, "f0:", F0);
+
+  for (int i = 0; i < number_of_objects; i++) {
+    int ret = fscanf(file, "%s\n", type);
+    ASERT(ret == 1);
+
+    // printf("%s\n", type);
+    if (strcasecmp(type, "triangle") == 0) {
       printf("found triangle\n");
-      for (int j = 0; j < 3; j++)
-      {
+      for (int j = 0; j < 3; j++) {
         parse_doubles(file, "pos:", t.v[j].position);
         parse_doubles(file, "nor:", t.v[j].normal);
         parse_doubles(file, "dif:", t.v[j].color_diffuse);
-        parse_doubles(file, "spe:", t.v[j].color_specular);
-        parse_shi(file, &t.v[j].shininess);
+
+        parse_double(file, "rou:", t.v[j].roughness);
+        parse_double(file, "met:", t.v[j].metallic);
       }
 
-      if (num_triangles == MAX_TRIANGLES)
-      {
+      if ((int)triangles.size() == MAX_TRIANGLES) {
         printf("too many triangles, you should increase MAX_TRIANGLES!\n");
         exit(0);
       }
-      triangles[num_triangles++] = t;
+
+      triangles.push_back(t);
     }
-    else if (strcasecmp(type, "sphere") == 0)
-    {
+    else if (strcasecmp(type, "sphere") == 0) {
       printf("found sphere\n");
 
       parse_doubles(file, "pos:", s.position);
-      parse_rad(file, &s.radius);
+      parse_double(file, "rad:", s.radius);
       parse_doubles(file, "dif:", s.color_diffuse);
-      parse_doubles(file, "spe:", s.color_specular);
-      parse_shi(file, &s.shininess);
 
-      if (num_spheres == MAX_SPHERES)
-      {
+      parse_double(file, "rou:", s.roughness);
+      parse_double(file, "met:", s.metallic);
+
+      if ((int)spheres.size() == MAX_SPHERES) {
         printf("too many spheres, you should increase MAX_SPHERES!\n");
         exit(0);
       }
-      spheres[num_spheres++] = s;
+
+      spheres.push_back(s);
     }
-    else if (strcasecmp(type, "light") == 0)
-    {
+    else if (strcasecmp(type, "light") == 0) {
       printf("found light\n");
+      parse_doubles(file, "p0:", l.p[0]);
+      parse_doubles(file, "p1:", l.p[1]);
+      parse_doubles(file, "p2:", l.p[2]);
+      parse_doubles(file, "p3:", l.p[3]);
+
       parse_doubles(file, "pos:", l.position);
+      parse_doubles(file, "nrm:", l.normal);
       parse_doubles(file, "col:", l.color);
 
-      if (num_lights == MAX_LIGHTS)
-      {
+      if ((int)lights.size() == MAX_LIGHTS) {
         printf("too many lights, you should increase MAX_LIGHTS!\n");
         exit(0);
       }
-      lights[num_lights++] = l;
+      lights.push_back(l);
     }
-    else
-    {
+    else {
       printf("unknown type in scene description:\n%s\n", type);
       exit(0);
     }

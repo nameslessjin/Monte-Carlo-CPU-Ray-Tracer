@@ -9,19 +9,26 @@
 struct Vertex
 {
   double position[3];
-  double color_diffuse[3];
-  double color_specular[3];
   double normal[3];
-  double shininess;
+
+  double color_diffuse[3];
+  double roughness;
+  double metallic;
+
+  double color_specular[3]; // not used in monte carlo
+  double shininess; // not used in monte carlo
 };
 
 struct GLM_Vertex
 {
   glm::vec3 position;
   glm::vec3 kd;
-  glm::vec3 ks;
   glm::vec3 n;
-  float shininess;
+  float roughness;
+  float metallic;
+
+  glm::vec3 ks; // not used in monte carlo
+  float shininess; // not used in monte carlo
 };
 
 struct Triangle
@@ -32,22 +39,28 @@ struct Triangle
 struct Sphere
 {
   double position[3];
-  double color_diffuse[3];
-  double color_specular[3];
-  double shininess;
   double radius;
+
+  double color_diffuse[3];
+  double roughness;
+  double metallic;
+
+  double color_specular[3]; // not used in monte carlo
+  double shininess; // not used in monte carlo
 };
 
 struct Light
 {
   double position[3];
+  double normal[3];
   double color[3];
+  double p[4][3];
 };
 
 struct MonteCarlo {
-  glm::vec3 p, w_i, w_o, albedo, n;
+  glm::vec3 p, w_i, w_o, albedo, n, F0;
   Light light;
-  float metallic, roughness, F0;
+  float metallic, roughness;
 };
 
 
@@ -66,6 +79,7 @@ struct Color
   Color operator+(Color const &c);
   Color operator*(glm::vec3 vec3);
   Color operator/=(float f);
+  Color operator/(Color const &c);
 };
 
 struct Ray
