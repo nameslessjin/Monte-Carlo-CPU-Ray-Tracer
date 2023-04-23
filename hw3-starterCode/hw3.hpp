@@ -13,6 +13,7 @@
 #include <GLUT/glut.h>
 #endif
 
+#include <random>
 #include <glm/gtx/string_cast.hpp>
 #include <cmath>
 #include <iostream>
@@ -72,6 +73,7 @@ int num_lights = 0;
 float e = 1e-4;
 float sigma = 1e-5;
 
+glm::vec2 findPixelTopLeftCorner(int x, int y);
 glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);
 glm::vec3 maxPointSphere(Sphere &s);

@@ -122,6 +122,12 @@ void generate_ray(Ray &ray, int x, int y)
   ray.dir = glm::normalize(dirs);
 }
 
+glm::vec2 findPixelTopLeftCorner(int x, int y) {
+  float px = x / (WIDTH * 1.0f);
+  float py = y / (HEIGHT * 1.0f);
+  return glm::vec2(px, py);
+}
+
 void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples)
 {
 
@@ -129,18 +135,30 @@ void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_sam
   float fov_rad = glm::radians(fov);
   float half_fov_tan = std::tan(fov_rad * 0.5f);
   int rt_num_samples = sqrt(num_samples);
+  std::random_device rd;
+  std::mt19937 eng;
+  std::uniform_real_distribution<float> distrib(0.0, 1.0 - 1e-8);
 
   float increment = 1.0f / rt_num_samples;
   float start = increment / 2;
+
+  glm::vec2 p0 = findPixelTopLeftCorner(x, y);
+  glm::vec2 p1 = findPixelTopLeftCorner(x + 1, y);
+  glm::vec2 p2 = findPixelTopLeftCorner(x, y + 1);
+  glm::vec2 p3 = findPixelTopLeftCorner(x + 1, y + 1);
+
 
   for (int i = 0; i < rt_num_samples; ++i)
   {
     for (int j = 0; j < rt_num_samples; ++j)
     {
-      float ndcX = (2.0f * (x + start + (i * increment)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
-      float ndcY = (1.0f - 2.0f * (y + start + (j * increment)) / (HEIGHT * 1.0f)) * half_fov_tan;
+      float u1 = distrib(eng), u2 = distrib(eng), u3 = distrib(eng);
+      glm::vec2 p = (1 - u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
+      float ndcX = (2.0f * p.x - 1.0f) * aspect_ratio * half_fov_tan;
+      float ndcY = (1.0f - 2.0f * p.y) * half_fov_tan;
       glm::vec3 dirs(ndcX, -ndcY, -1.0f);
       rays[i * rt_num_samples + j].dir = glm::normalize(dirs);
+
     }
   }
 }
