@@ -95,9 +95,7 @@ void contructHVB()
     all_aabbs.push_back(aabb);
   }
 
-  // for (int i = 0; i < all_aabbs.size(); ++i) {
-  //   all_aabbs[i].print();
-  // }
+  std::cout << "Start Constructing HVB.  Total AABB: " << all_aabbs.size() << "\n";
 
   std::vector<AABB> hbv = buildHVB(all_aabbs);
 
@@ -321,6 +319,145 @@ Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection)
   GLM_Vertex v = calc_barycentric_interpolation(t, intersection);
 
   return calc_phong_shading(l_dir, l_color, v);
+}
+
+glm::vec3 shadowRayColor(Ray &shadow_ray, Light &light) {
+
+  glm::vec3 color(0, 0, 0);
+
+  AABB *intersected_aabb = checkIntersectionWithAABB(HBV, shadow_ray);
+  bool blocked = false;
+
+  if (intersected_aabb) {
+    int sphere_j = intersected_aabb->sphere_i;
+    int triangle_j = intersected_aabb->triangle_i;
+
+    if (check_block(shadow_ray, spheres[sphere_j], light)) blocked = true;
+    if (check_block(shadow_ray, triangles[triangle_j], light)) blocked = true;
+  }
+
+  if (!blocked) {
+    color = vec3(light.color);
+  }
+
+  return color;
+}
+
+Color calculateMonteCarlo() {
+
+  Color color;
+
+  // should already know
+  Light light;
+  glm::vec3 intersection, object_n, l_pos, light_n, albedo;
+  float total_light_area, metallic, roughness, F0; // known
+
+  glm::vec3 l_pos = vec3(light.position);
+
+  glm::vec3 w_i = glm::normalize(l_pos - intersection);
+  glm::vec3 w_o = glm::normalize(-intersection);
+  Ray shadow_ray(w_i, intersection);
+  glm::vec3 le;
+
+  float w_i_dot_object_n = glm::dot(w_i, object_n);
+
+  // check if the ray is blocked, if so le = 0, else the color of the light
+  if (w_i_dot_object_n <= sigma) le = glm::vec3(0,0,0);
+  else le = shadowRayColor(shadow_ray, light);
+
+
+  float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
+
+  MonteCarlo mc;
+  mc.p = intersection;
+  mc.w_i = w_i;
+  mc.w_o = w_o;
+  mc.albedo = albedo;
+  mc.light = light;
+  mc.n = object_n;
+  mc.metallic = metallic;
+  mc.roughness = roughness;
+  mc.F0 = F0;
+
+  glm::vec3 brdf = calculateBRDF(mc);
+
+  glm::vec3 c = le * brdf * w_i_dot_object_n / pdf;
+  color = Color(c);
+
+  return color;
+
+}
+
+glm::vec3 calculateBRDF(const MonteCarlo &mc) {
+
+  glm::vec3 albedo = mc.albedo;
+  float fd = calculateFD(mc);
+  float fs = calculateFS(mc);
+
+  return (fs + fd) * albedo;
+}
+
+float calculateFS(const MonteCarlo &mc) {
+
+  float w_i_dot_n = glm::dot(mc.w_i, mc.n);
+  float w_o_dot_n = glm::dot(mc.w_o, mc.n);
+
+  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+  float w_o_dot_h = glm::dot(mc.w_o, h);
+
+  float F = mc.F0 + (1 - mc.F0) * pow((1 - w_o_dot_h), 5);
+  float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
+  float D = calculateD(mc, h);
+
+  return (F * G * D) / (4 * w_i_dot_n * w_o_dot_n);
+}
+float calculateD(const MonteCarlo &mc, const glm::vec3 &m) {
+
+  float alpha = pow(mc.roughness, 2);
+  float alpha_sq = pow(alpha, 2);
+  float pos = positiveChar(glm::dot(m, mc.n));
+
+  float theta_m = findAngleRad(m, mc.n);
+  
+  float deno = M_PI * pow(glm::cos(theta_m * pow(alpha_sq + pow(glm::tan(theta_m), 2), 2)), 4);
+
+  return alpha_sq * pos / deno;
+}
+
+float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m) {
+
+  float v_dot_m = glm::dot(v, m);
+  float v_dot_n = glm::dot(v, mc.n);
+  float alpha = pow(mc.roughness, 2);
+
+  float pos = positiveChar(v_dot_m / v_dot_n);
+  float theta_v = findAngleRad(v, mc.n);
+
+  float denomenator = 1 + sqrt(1 + pow(alpha, 2) * pow(glm::tan(theta_v), 2));
+
+  return pos * 2 / denomenator;
+}
+
+float positiveChar(float t) {
+  return t > 0.0f ? 1 : 0;
+}
+
+float findAngleRad(const glm::vec3 &u, const glm::vec3 &v) {
+  return glm::acos( glm::dot(glm::normalize(u), glm::normalize(v)));
+}
+
+float calculateFD(const MonteCarlo &mc) {
+
+  float w_i_dot_n = glm::dot(mc.w_i, mc.n);
+  float w_o_dot_n = glm::dot(mc.w_o, mc.n);
+
+  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+
+  float F_D90 = 2 * pow(glm::dot(h, mc.w_i), 2) * mc.roughness + 0.5;
+  float one_over_pi = 1.0f / M_PI;
+
+  return one_over_pi * (1 + (F_D90 - 1) * (1 - pow(w_i_dot_n, 5))) * (1 + (F_D90 - 1) * (1 - pow(w_o_dot_n, 5))) * (1 - mc.metallic);
+
 }
 
 bool check_block(Ray &r, Sphere &s, Light &l)

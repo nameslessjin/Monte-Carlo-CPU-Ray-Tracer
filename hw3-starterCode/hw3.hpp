@@ -73,6 +73,15 @@ int num_lights = 0;
 float e = 1e-4;
 float sigma = 1e-5;
 
+float calculateD(const MonteCarlo &mc, const glm::vec3 &m);
+float findAngleRad(const glm::vec3 &u, const glm::vec3 &v);
+float positiveChar(float t);
+float calculateG1(const MonteCarlo &mc, glm::vec3 &v, glm::vec3 &m);
+float calculateFD(const MonteCarlo &mc);
+float calculateFS(const MonteCarlo &mc);
+glm::vec3 calculateBRDF(const MonteCarlo &mc);
+Color calculateMonteCarlo();
+glm::vec3 shadowRayColor(Ray &shadow_ray, Light &light);
 glm::vec2 findPixelTopLeftCorner(int x, int y);
 glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);

@@ -24,6 +24,12 @@ struct GLM_Vertex
   float shininess;
 };
 
+struct MonteCarlo {
+  glm::vec3 p, w_i, w_o, albedo, n;
+  Light light;
+  float metallic, roughness, F0;
+};
+
 struct Triangle
 {
   Vertex v[3];
