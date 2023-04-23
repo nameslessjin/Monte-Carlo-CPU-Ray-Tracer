@@ -349,8 +349,8 @@ Color calculateMonteCarlo() {
 
   // should already know
   Light light;
-  glm::vec3 intersection, object_n, l_pos, light_n, albedo;
-  float total_light_area, metallic, roughness, F0; // known
+  glm::vec3 intersection, object_n, light_n, albedo;
+  float total_light_area, metallic, roughness, F0;
 
   glm::vec3 l_pos = vec3(light.position);
 

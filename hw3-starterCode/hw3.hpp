@@ -76,7 +76,7 @@ float sigma = 1e-5;
 float calculateD(const MonteCarlo &mc, const glm::vec3 &m);
 float findAngleRad(const glm::vec3 &u, const glm::vec3 &v);
 float positiveChar(float t);
-float calculateG1(const MonteCarlo &mc, glm::vec3 &v, glm::vec3 &m);
+float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m);
 float calculateFD(const MonteCarlo &mc);
 float calculateFS(const MonteCarlo &mc);
 glm::vec3 calculateBRDF(const MonteCarlo &mc);
