@@ -121,17 +121,8 @@ void generate_ray(Ray &ray, int x, int y)
   ray.dir = glm::normalize(dirs);
 }
 
-glm::vec2 findPixelTopLeftCorner(int x, int y) {
 
-  float aspect_ratio = WIDTH * 1.0f / HEIGHT;
-  float half_fov_tan = std::tan(glm::radians(fov) * 0.5f);
-  float px = (2.0f * ((x + 0.5f) / WIDTH) - 1.0f) * aspect_ratio * half_fov_tan;
-  float py = (1.0f - 2.0f * ((y + 0.5f) / HEIGHT)) * half_fov_tan;
-
-  return glm::vec2(px, py);
-}
-
-void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples)
+void stratified_sampling(std::vector<Ray> &rays, int x, int y, int num_samples)
 {
 
   float aspect_ratio = WIDTH * 1.0f / HEIGHT;
@@ -141,20 +132,51 @@ void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_sam
   std::mt19937 eng;
   std::uniform_real_distribution<float> distrib(0.0, 1.0 - 1e-8);
 
-  glm::vec2 p0 = findPixelTopLeftCorner(x, y);
-  glm::vec2 p1 = findPixelTopLeftCorner(x + 1, y);
-  glm::vec2 p2 = findPixelTopLeftCorner(x, y + 1);
-  glm::vec2 p3 = findPixelTopLeftCorner(x + 1, y + 1);
+  float increment = 1.0f / rt_num_samples;
 
   for (int i = 0; i < rt_num_samples; ++i)
   {
     for (int j = 0; j < rt_num_samples; ++j)
     {
       float u1 = distrib(eng), u2 = distrib(eng), u3 = distrib(eng);
+
+      float left = (2.0f * (x + (i * increment)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float right = (2.0f * (x + ((i + 1) * increment)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float top = (1.0f - 2.0f * (y + (j * increment)) / (HEIGHT * 1.0f)) * half_fov_tan;
+      float bottom = (1.0f - 2.0f * (y + ((j + 1) * increment)) / (HEIGHT * 1.0f)) * half_fov_tan;
+
+      glm::vec2 p0 = glm::vec2(left, top);
+      glm::vec2 p1 = glm::vec2(right, top);
+      glm::vec2 p2 = glm::vec2(left, bottom);
+      glm::vec2 p3 = glm::vec2(right, bottom);
+
       glm::vec2 p = (1 - u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
       glm::vec3 dirs(p.x, -p.y, -1.0f);
       rays[i * rt_num_samples + j].dir = glm::normalize(dirs);
 
+    }
+  }
+}
+
+void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples)
+{
+
+  float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+  float fov_rad = glm::radians(fov);
+  float half_fov_tan = std::tan(fov_rad * 0.5f);
+  int rt_num_samples = sqrt(num_samples);
+
+  float increment = 1.0f / rt_num_samples;
+  float start = increment / 2;
+
+  for (int i = 0; i < rt_num_samples; ++i)
+  {
+    for (int j = 0; j < rt_num_samples; ++j)
+    {
+      float ndcX = (2.0f * (x + start + (i * increment)) / (WIDTH * 1.0f) - 1.0f) * aspect_ratio * half_fov_tan;
+      float ndcY = (1.0f - 2.0f * (y + start + (j * increment)) / (HEIGHT * 1.0f)) * half_fov_tan;
+      glm::vec3 dirs(ndcX, -ndcY, -1.0f);
+      rays[i * rt_num_samples + j].dir = glm::normalize(dirs);
     }
   }
 }
@@ -213,7 +235,7 @@ bool check_single_triangle_intersection(const Ray &r, const Triangle &tri, float
   float n_dot_d = glm::dot(plane_n, r.dir);
 
   // light direction is parallel to the plane
-  if (abs(n_dot_d) < e)
+  if (abs(n_dot_d) < e5)
     return false;
 
   // calculate the intersection between ray and plane
@@ -223,7 +245,7 @@ bool check_single_triangle_intersection(const Ray &r, const Triangle &tri, float
     return false;
   intersection = r.pos + r.dir * t;
 
-  if (abs(glm::length(intersection) - glm::length(r.pos)) < e)
+  if (abs(glm::length(intersection) - glm::length(r.pos)) < e5)
     return false;
 
   // check if the intersection is inside the polygon with 2d projection against x-y plane
@@ -244,17 +266,17 @@ bool check_single_sphere_intersection(const Ray &r, const Sphere &s, float &t, g
   float c = pow(x0_xc, 2) + pow(y0_yc, 2) + pow(z0_zc, 2) - pow(s.radius, 2);
   float bc = pow(b, 2) - 4 * a * c;
 
-  if (bc < 0.0f)
+  if (bc < e5)
     return false;
 
   float t0 = (-b + sqrt(bc)) / (2 * a);
   float t1 = (-b - sqrt(bc)) / (2 * a);
 
-  if (t0 >= 0.0f && t1 >= 0.0f)
+  if (t0 >= e5 && t1 >= e5)
   {
     t = std::min(t0, t1);
   }
-  else if (t0 < 0.0f && t1 < 0.0f)
+  else if (t0 < e5 && t1 < e5)
   {
     return false;
   }
@@ -316,9 +338,6 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection)
 std::vector<glm::vec3> randomPointsInQuadrilateral(const Light &light) {
 
   glm::vec3 p0 = doubleToVec(light.p[0]), p1 = doubleToVec(light.p[1]), p2 = doubleToVec(light.p[2]), p3 = doubleToVec(light.p[3]);
-  float triangle_area1 = calc_triangle_area(p0, p1, p2);
-  float triangle_area2 = calc_triangle_area(p0, p2, p3);
-  float total_area = triangle_area1 + triangle_area2;
 
   std::random_device rd;
   std::mt19937 eng;
@@ -331,7 +350,7 @@ std::vector<glm::vec3> randomPointsInQuadrilateral(const Light &light) {
     float u2 = distrib(eng);
     float u3 = distrib(eng);
 
-    glm::vec3 p = (1- u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
+    glm::vec3 p = (1 - u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
     random_ps.push_back(p);
   }
 
@@ -397,7 +416,7 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light) {
     newLight.position[2] = l_pos.z;
 
     // check if the ray is blocked, if so le = 0, else the color of the light
-    if (w_i_dot_n > 1e-8) le = shadowRayColor(shadow_ray, newLight);
+    if (w_i_dot_n > e5) le = shadowRayColor(shadow_ray, newLight);
 
     float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
 
@@ -416,7 +435,6 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light) {
   }
 
   color /= random_ps.size() * 1.0f;
-  color = color / (color + vec3(1, 1, 1));
 
   return color;
 
@@ -800,7 +818,7 @@ Color tracing(int x, int y)
     Ray ray;
     rays.push_back(ray);
   }
-  generate_ray_antialiasing(rays, x, y, num_samples);
+  stratified_sampling(rays, x, y, num_samples);
 
   for (int i = 0; i < rays.size(); ++i)
   {
@@ -816,8 +834,9 @@ Color tracing(int x, int y)
 void draw_pixel(int x, int y, std::atomic<int> &finished)
 {
   Color color = tracing(x, y);
-  color += Color(0.1f, 0.1f, 0.1f); // add ambient light
-  color.clamp();
+  color += Color(vec3(ambient_light)); // add ambient light
+
+  color = color / (color + vec3(1, 1, 1));
 
   img[y][x][0] = color.r;
   img[y][x][1] = color.g;
@@ -838,7 +857,6 @@ void fill_image_plane()
 
   ThreadPool thread_pool(num_threads);
 
-  // HBV->print();
   for (unsigned int x = 0; x < WIDTH; ++x)
   {
     for (unsigned int y = 0; y < HEIGHT; ++y)

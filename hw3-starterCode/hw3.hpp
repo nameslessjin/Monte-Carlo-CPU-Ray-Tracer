@@ -56,10 +56,10 @@ int mode = MODE_DISPLAY;
 #define HEIGHT 480
 
 // the field of view of the camera
-#define fov 40.0
+#define fov 60.0
 
 #define MAX_REFLECT 0
-#define ANTI_ALIASING_SAMPLE 1
+#define ANTI_ALIASING_SAMPLE 16 // has to be a square number
 #define LIGHT_SAMPLES 100
 
 #define ASERT(cond)                                                      \
@@ -89,6 +89,7 @@ int num_spheres = 0;
 int num_lights = 0;
 float e = 1e-4;
 float sigma = 1e-5;
+float e5 = 1e-5;
 
 std::vector<glm::vec3> randomPointsInQuadrilateral(const int light_samples);
 float calcLightArea(const Light &light);
@@ -102,7 +103,6 @@ glm::vec3 calculateFS(const MonteCarlo &mc);
 glm::vec3 calculateBRDF(const MonteCarlo &mc);
 Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light);
 glm::vec3 shadowRayColor(const Ray &shadow_ray, const Light &light);
-glm::vec2 findPixelTopLeftCorner(int x, int y);
 glm::vec3 maxPointTriangle(Triangle &t);
 glm::vec3 minPointTriangle(Triangle &t);
 glm::vec3 maxPointSphere(Sphere &s);
@@ -134,6 +134,7 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection);
 Color calc_ray_color(int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time);
 void generate_ray(Ray &ray, int x, int y);
 void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_samples);
+void stratified_sampling(std::vector<Ray> &rays, int x, int y, int num_samples);
 void draw_pixel(int x, int y, std::atomic<int> &finished);
 
 
