@@ -60,7 +60,7 @@ int mode = MODE_DISPLAY;
 
 #define MAX_REFLECT 0
 #define ANTI_ALIASING_SAMPLE 16 // has to be a square number
-#define LIGHT_SAMPLES 100
+#define LIGHT_SAMPLES 1000
 
 #define ASERT(cond)                                                      \
   do {                                                                   \
@@ -83,6 +83,8 @@ double ambient_light[3];
 
 std::vector<AABB> all_aabbs;
 AABB *HBV;
+
+bool clicked = false;
 
 int num_triangles = 0;
 int num_spheres = 0;

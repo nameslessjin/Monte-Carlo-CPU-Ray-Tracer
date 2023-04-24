@@ -430,9 +430,20 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light) {
     mc.roughness = roughness;
     mc.F0 = F0_vec3;
 
-    glm::vec3 c = le * calculateBRDF(mc) * w_i_dot_n / pdf;
-    color += Color(c);
+    glm::vec3 brdf = calculateBRDF(mc);
+    glm::vec3 c = le * brdf * w_i_dot_n / pdf;
+    Color cl = Color(c);
+    // if (clicked) {
+    //   std::cout << "calculateMonteCarlo light sample le: " << glm::to_string(brdf) << '\n';
+    // }
+
+    color += cl;
   }
+
+  // if (clicked) {
+  //   std::cout << "calculateMonteCarlo: \n";
+  //   color.print();
+  // }
 
   color /= random_ps.size() * 1.0f;
 
@@ -444,6 +455,10 @@ glm::vec3 calculateBRDF(const MonteCarlo &mc) {
 
   glm::vec3 fd = calculateFD(mc);
   glm::vec3 fs = calculateFS(mc);
+
+  // if (clicked) {
+  //   std::cout << "calculateBRDF fs: " << glm::to_string(fs) << '\n';
+  // }
 
   return (fs + fd) * mc.albedo;
 }
@@ -459,6 +474,10 @@ glm::vec3 calculateFS(const MonteCarlo &mc) {
   glm::vec3 F = calculateF(mc);
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
+
+  // if (clicked) {
+  //   std::cout << "calculateFS G: " << D << '\n';
+  // }
 
   return (F * G * D) / (4 * abs(w_i_dot_n) * abs(w_o_dot_n));
 }
@@ -488,6 +507,10 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m) {
   
   float deno = M_PI * pow(glm::cos(theta_m), 4) * pow(alpha_sq + pow(glm::tan(theta_m), 2), 2);
 
+  // if (clicked) {
+  //   std::cout << "calculateFS theta_m: " << theta_m << '\n';
+  // }
+
   return alpha_sq * pos / deno;
 }
 
@@ -510,7 +533,10 @@ float positiveChar(float t) {
 }
 
 float findAngleRad(const glm::vec3 &u, const glm::vec3 &v) {
-  return glm::acos(glm::dot(glm::normalize(u), glm::normalize(v)));
+  // if (clicked) {
+  //   std::cout << "calculateFS theta_m: " << glm::dot(glm::normalize(u), glm::normalize(v)) << '\n';
+  // }
+  return glm::acos(glm::dot(glm::normalize(u), glm::normalize(v)) - 1e-6);
 }
 
 glm::vec3 calculateFD(const MonteCarlo &mc) {
@@ -642,8 +668,19 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
   // check out each light source
   for (const Light &light : lights)
   {
-    color += calculateMonteCarlo(v, light);
+    Color c = calculateMonteCarlo(v, light);
+
+    // if (clicked) {
+    //   std::cout << "calc_shadow_ray light sample: \n";
+    //   c.print();
+    // }
+    color += c;
   }
+
+  // if (clicked) {
+  //   std::cout << "calc_shadow_ray: \n";
+  //   color.print();
+  // }
 
   return color;
 }
@@ -777,6 +814,11 @@ Color check_intersection(Ray &ray, int time)
     triangle_i = -1;
   }
 
+  // if (clicked) {
+  //   std::cout << "intersection: \n";
+  //   color.print();
+  // }
+
   return color;
 }
 
@@ -823,8 +865,15 @@ Color tracing(int x, int y)
   for (int i = 0; i < rays.size(); ++i)
   {
     // Color c(1.0f, 1.0f, 1.0f);
+    // if (clicked)
+    //   std::cout << "tracing sample: " << i << '\n';
     color += check_intersection(rays[i], MAX_REFLECT);;
   }
+
+  // if (clicked) {
+  //   std::cout << "tracing: \n";
+  //   color.print();
+  // }
 
   color /= rays.size() * 1.0f;
 
@@ -844,6 +893,19 @@ void draw_pixel(int x, int y, std::atomic<int> &finished)
 
   ++finished;
   print_progress(finished, WIDTH * HEIGHT, mtx);
+}
+
+void draw_pixel_debug(int x, int y)
+{
+  Color color = tracing(x, y);
+  color += Color(vec3(ambient_light)); // add ambient light
+
+  color = color / (color + vec3(1, 1, 1));
+
+  // if (clicked) {
+  //   std::cout << "draw_pixel_debug: \n";
+  //   color.print();
+  // }
 }
 
 void fill_image_plane()
@@ -877,6 +939,13 @@ void draw_scene()
 {
   contructHVB();
   fill_image_plane();
+
+  // x 403, y 279
+  clicked = true;
+  draw_pixel_debug(403, 279);
+  // float r = img[HEIGHT - 279][407][0], g = img[HEIGHT - 279][407][1], b = img[HEIGHT - 279][407][2];
+  // std::cout << "draw_scene r: " << r << " g: " << g << " b: " << b << '\n';
+  clicked = false;
 
   glPointSize(2.0);
   glBegin(GL_POINTS);
