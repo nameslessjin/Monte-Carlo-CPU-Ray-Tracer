@@ -122,8 +122,12 @@ void generate_ray(Ray &ray, int x, int y)
 }
 
 glm::vec2 findPixelTopLeftCorner(int x, int y) {
-  float px = x / (WIDTH * 1.0f);
-  float py = y / (HEIGHT * 1.0f);
+
+  float aspect_ratio = WIDTH * 1.0f / HEIGHT;
+  float half_fov_tan = std::tan(glm::radians(fov) * 0.5f);
+  float px = (2.0f * ((x + 0.5f) / WIDTH) - 1.0f) * aspect_ratio * half_fov_tan;
+  float py = (1.0f - 2.0f * ((y + 0.5f) / HEIGHT)) * half_fov_tan;
+
   return glm::vec2(px, py);
 }
 
@@ -131,21 +135,16 @@ void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_sam
 {
 
   float aspect_ratio = WIDTH * 1.0f / HEIGHT;
-  float fov_rad = glm::radians(fov);
-  float half_fov_tan = std::tan(fov_rad * 0.5f);
+  float half_fov_tan = std::tan(glm::radians(fov) * 0.5f);
   int rt_num_samples = sqrt(num_samples);
   std::random_device rd;
   std::mt19937 eng;
   std::uniform_real_distribution<float> distrib(0.0, 1.0 - 1e-8);
 
-  float increment = 1.0f / rt_num_samples;
-  float start = increment / 2;
-
   glm::vec2 p0 = findPixelTopLeftCorner(x, y);
   glm::vec2 p1 = findPixelTopLeftCorner(x + 1, y);
   glm::vec2 p2 = findPixelTopLeftCorner(x, y + 1);
   glm::vec2 p3 = findPixelTopLeftCorner(x + 1, y + 1);
-
 
   for (int i = 0; i < rt_num_samples; ++i)
   {
@@ -153,9 +152,7 @@ void generate_ray_antialiasing(std::vector<Ray> &rays, int x, int y, int num_sam
     {
       float u1 = distrib(eng), u2 = distrib(eng), u3 = distrib(eng);
       glm::vec2 p = (1 - u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
-      float ndcX = (2.0f * p.x - 1.0f) * aspect_ratio * half_fov_tan;
-      float ndcY = (1.0f - 2.0f * p.y) * half_fov_tan;
-      glm::vec3 dirs(ndcX, -ndcY, -1.0f);
+      glm::vec3 dirs(p.x, -p.y, -1.0f);
       rays[i * rt_num_samples + j].dir = glm::normalize(dirs);
 
     }
@@ -204,12 +201,12 @@ bool point_triangle_xz(glm::vec3 c0, glm::vec3 c1, glm::vec3 c2, glm::vec3 c)
   return alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f;
 }
 
-bool check_single_triangle_intersection(const Ray &r, Triangle &tri, float &t, glm::vec3 &intersection)
+bool check_single_triangle_intersection(const Ray &r, const Triangle &tri, float &t, glm::vec3 &intersection)
 {
 
-  glm::vec3 c0 = vec3(tri.v[0].position);
-  glm::vec3 c1 = vec3(tri.v[1].position);
-  glm::vec3 c2 = vec3(tri.v[2].position);
+  glm::vec3 c0 = doubleToVec(tri.v[0].position);
+  glm::vec3 c1 = doubleToVec(tri.v[1].position);
+  glm::vec3 c2 = doubleToVec(tri.v[2].position);
 
   // check if there is an intersection between the plane and ray
   glm::vec3 plane_n = glm::normalize(glm::cross(c1 - c0, c2 - c1));
@@ -236,7 +233,7 @@ bool check_single_triangle_intersection(const Ray &r, Triangle &tri, float &t, g
   return in_xy || in_xz;
 }
 
-bool check_single_sphere_intersection(const Ray &r, Sphere &s, float &t, glm::vec3 &intersection)
+bool check_single_sphere_intersection(const Ray &r, const Sphere &s, float &t, glm::vec3 &intersection)
 {
 
   float x0_xc = r.pos.x - s.position[0];
@@ -361,7 +358,7 @@ Color phong_shading(Triangle &t, Light &l, glm::vec3 &intersection)
   return calc_phong_shading(l_dir, l_color, v);
 }
 
-glm::vec3 shadowRayColor(Ray &shadow_ray, Light &light) {
+glm::vec3 shadowRayColor(const Ray &shadow_ray, const Light &light) {
 
   glm::vec3 color(0, 0, 0);
 
@@ -372,12 +369,12 @@ glm::vec3 shadowRayColor(Ray &shadow_ray, Light &light) {
     int sphere_j = intersected_aabb->sphere_i;
     int triangle_j = intersected_aabb->triangle_i;
 
-    if (check_block(shadow_ray, spheres[sphere_j], light)) blocked = true;
-    if (check_block(shadow_ray, triangles[triangle_j], light)) blocked = true;
+    if (sphere_j != -1 && check_block(shadow_ray, spheres[sphere_j], light)) blocked = true;
+    if (triangle_j != -1 && check_block(shadow_ray, triangles[triangle_j], light)) blocked = true;
   }
 
   if (!blocked) {
-    color = vec3(light.color);
+    color = doubleToVec(light.color);
   }
 
   return color;
@@ -397,13 +394,20 @@ Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
     glm::vec3 w_i = glm::normalize(l_pos - intersection);
     glm::vec3 w_o = glm::normalize(-intersection);
     Ray shadow_ray(w_i, intersection);
-    glm::vec3 le;
+    glm::vec3 le = glm::vec3(0,0,0);
 
     float w_i_dot_object_n = glm::dot(w_i, object_n);
 
+    Light newLight;
+    newLight.color[0] = light.color[0];
+    newLight.color[1] = light.color[1];
+    newLight.color[2] = light.color[2];
+    newLight.position[0] = l_pos.x;
+    newLight.position[1] = l_pos.y;
+    newLight.position[2] = l_pos.z;
+
     // check if the ray is blocked, if so le = 0, else the color of the light
-    if (w_i_dot_object_n <= sigma) le = glm::vec3(0,0,0);
-    else le = shadowRayColor(shadow_ray, light);
+    if (w_i_dot_object_n > 1e-8) le = shadowRayColor(shadow_ray, newLight);
 
     float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
 
@@ -520,12 +524,16 @@ glm::vec3 calculateFD(const MonteCarlo &mc) {
 
 }
 
-bool check_block(Ray &r, Sphere &s, Light &l)
+glm::vec3 doubleToVec(const double *d) {
+  return glm::vec3(d[0], d[1], d[2]);
+}
+
+bool check_block(const Ray &r, const Sphere &s, const Light &l)
 {
 
   glm::vec3 shadow_ray_intersection;
   float tmp_t = -1.0f;
-  glm::vec3 l_pos = vec3(l.position);
+  glm::vec3 l_pos = doubleToVec(l.position);
 
   // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
   if (check_single_sphere_intersection(r, s, tmp_t, shadow_ray_intersection))
@@ -543,12 +551,12 @@ bool check_block(Ray &r, Sphere &s, Light &l)
   return false;
 }
 
-bool check_block(Ray &r, Triangle &t, Light &l)
+bool check_block(const Ray &r, const Triangle &t, const Light &l)
 {
 
   glm::vec3 shadow_ray_intersection;
   float tmp_t = -1.0f;
-  glm::vec3 l_pos = vec3(l.position);
+  glm::vec3 l_pos = doubleToVec(l.position);
 
   // if the shadow ray hits a sphere that is not the current sphere and there is an intersection
   if (check_single_triangle_intersection(r, t, tmp_t, shadow_ray_intersection))
@@ -609,10 +617,10 @@ GLM_Vertex calcGLMVertex(Sphere &s, glm::vec3 &intersection) {
     return vertex;
 }
 
-void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &intersection)
+Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
 {
 
-  color = Color();
+  Color color;
   // check out each light source
   for (int i = 0; i < lights.size(); ++i)
   {
@@ -634,34 +642,40 @@ void calc_shadow_ray(Color &color, int sphere_i, int triangle_i, glm::vec3 &inte
     }
     color += calculateMonteCarlo(v, light);
   }
+
+  return color;
 }
 
-void calc_ray_color(Color &c, int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time)
+Color calc_ray_color(int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time)
 {
-  calc_shadow_ray(c, sphere_i, triangle_i, intersection);
+  Color c = calc_shadow_ray(sphere_i, triangle_i, intersection);
 
   // if (time > 0)
   // {
   //   glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
   //   Ray reflect_ray(r, intersection);
   //   Color color;
-  //   Color reflect_color = check_intersection(color, reflect_ray, time - 1);
-  //   glm::vec3 ks;
+  //   Color reflect_color = check_intersection(reflect_ray, time - 1);
+  //   GLM_Vertex v;
 
   //   if (sphere_i != -1)
   //   {
   //     Sphere &s = spheres[sphere_i];
-  //     ks = vec3(s.color_specular);
+  //     v = calcGLMVertex(s, intersection);
   //   }
   //   else
   //   {
   //     Triangle &t = triangles[triangle_i];
-  //     GLM_Vertex v = calcGLMVertex(t, intersection);
-  //     ks = v.ks;
+  //     v = calcGLMVertex(t, intersection);
   //   }
 
-  //   c = c * (1.0f - ks) + reflect_color * ks;
+  //   glm::vec3 F0_v3 = vec3(F0);
+  //   glm::vec3 one_F0 = vec3(1.0f, 1.0f, 1.0f) - F0_v3;
+
+  //   c = c * F0_v3 + reflect_color * one_F0;
   // }
+
+  return c;
 }
 
 AABB *pickCloserAABB(AABB *aabb1, AABB *aabb2, const Ray &ray) {
@@ -733,10 +747,10 @@ AABB *checkIntersectionWithAABB(AABB *aabb, const Ray &ray)
   return pickCloserAABB(left_intersection, right_intersection, ray);
 }
 
-Color check_intersection(Color &c, Ray &ray, int time)
+Color check_intersection(Ray &ray, int time)
 {
   int sphere_i = -1, triangle_i = -1;
-  Color &color = c;
+  Color color;
   glm::vec3 s_intersection, t_intersection;
   float intersection_t = -1.0f;
 
@@ -749,14 +763,14 @@ Color check_intersection(Color &c, Ray &ray, int time)
 
   if (sphere_i != -1 && check_single_sphere_intersection(ray, spheres[sphere_i], intersection_t, s_intersection)) {
     s_intersection = ray.pos + ray.dir * intersection_t;
-    calc_ray_color(color, sphere_i, -1, s_intersection, ray, time);
+    color = calc_ray_color(sphere_i, -1, s_intersection, ray, time);
   } else {
     sphere_i = -1;
   }
 
   if (triangle_i != -1 && check_single_triangle_intersection(ray, triangles[triangle_i], intersection_t, t_intersection)) {
     t_intersection = ray.pos + ray.dir * intersection_t;
-    calc_ray_color(color, -1, triangle_i, t_intersection, ray, time);
+    color = calc_ray_color(-1, triangle_i, t_intersection, ray, time);
   } else {
     triangle_i = -1;
   }
@@ -793,7 +807,7 @@ glm::vec3 calc_reflect_dir(int sphere_i, int triangle_i, glm::vec3 dir, glm::vec
 Color tracing(int x, int y)
 {
   // anti-aliasing with 16 rays per pixel
-  Color color(0.0f, 0.0f, 0.0f);
+  Color color;
   int num_samples = ANTI_ALIASING_SAMPLE;
   std::vector<Ray> rays;
 
@@ -806,13 +820,12 @@ Color tracing(int x, int y)
 
   for (int i = 0; i < num_samples; ++i)
   {
-    Color c(1.0f, 1.0f, 1.0f);
-    check_intersection(c, rays[i], MAX_REFLECT);
-    color += c;
+    // Color c(1.0f, 1.0f, 1.0f);
+    color += check_intersection(rays[i], MAX_REFLECT);;
   }
 
   color /= num_samples * 1.0f;
-  // color = color / (color + vec3(1, 1, 1));
+  color = color / (color + vec3(1, 1, 1));
 
   return color;
 }
