@@ -174,8 +174,8 @@ float calc_triangle_area(glm::vec3 a, glm::vec3 b, glm::vec3 c)
   return 0.5f * glm::length(glm::cross(b - a, c - a));
 }
 
-float calcLightArea(Light &light) {
-  glm::vec3 p0 = vec3(light.p[0]), p1 = vec3(light.p[1]), p2 = vec3(light.p[2]), p3 = vec3(light.p[3]);
+float calcLightArea(const Light &light) {
+  glm::vec3 p0 = doubleToVec(light.p[0]), p1 = doubleToVec(light.p[1]), p2 = doubleToVec(light.p[2]), p3 = doubleToVec(light.p[3]);
   float triangle_area1 = calc_triangle_area(p0, p1, p2);
   float triangle_area2 = calc_triangle_area(p0, p2, p3);
   return triangle_area1 + triangle_area2;
@@ -313,9 +313,9 @@ Color phong_shading(Sphere &s, Light &l, glm::vec3 intersection)
   return calc_phong_shading(l_dir, l_color, v);
 }
 
-std::vector<glm::vec3> randomPointsInQuadrilateral(Light &light) {
+std::vector<glm::vec3> randomPointsInQuadrilateral(const Light &light) {
 
-  glm::vec3 p0 = vec3(light.p[0]), p1 = vec3(light.p[1]), p2 = vec3(light.p[2]), p3 = vec3(light.p[3]);
+  glm::vec3 p0 = doubleToVec(light.p[0]), p1 = doubleToVec(light.p[1]), p2 = doubleToVec(light.p[2]), p3 = doubleToVec(light.p[3]);
   float triangle_area1 = calc_triangle_area(p0, p1, p2);
   float triangle_area2 = calc_triangle_area(p0, p2, p3);
   float total_area = triangle_area1 + triangle_area2;
@@ -331,7 +331,7 @@ std::vector<glm::vec3> randomPointsInQuadrilateral(Light &light) {
     float r2 = distrib(eng);
     float r3 = distrib(eng);
 
-    bool choose_triangle1 = r3 < triangle_area1 / total_area;
+    bool choose_triangle1 = r3 < (triangle_area1 / total_area);
 
     glm::vec3 a, b, c;
 
@@ -380,11 +380,11 @@ glm::vec3 shadowRayColor(const Ray &shadow_ray, const Light &light) {
   return color;
 }
 
-Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
+Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light) {
 
-  glm::vec3 intersection = v.position, object_n = v.n, albedo = v.kd, F0_vec3 = vec3(F0);
+  glm::vec3 intersection = v.position, n = v.n, albedo = v.kd, F0_vec3 = vec3(F0);
   float metallic = v.metallic, roughness = v.roughness;
-  glm::vec3 light_n = vec3(light.normal);
+  glm::vec3 light_n = doubleToVec(light.normal);
   float total_light_area = calcLightArea(light);
 
   std::vector<glm::vec3> random_ps = randomPointsInQuadrilateral(light);
@@ -396,7 +396,7 @@ Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
     Ray shadow_ray(w_i, intersection);
     glm::vec3 le = glm::vec3(0,0,0);
 
-    float w_i_dot_object_n = glm::dot(w_i, object_n);
+    float w_i_dot_n = glm::dot(w_i, n);
 
     Light newLight;
     newLight.color[0] = light.color[0];
@@ -407,7 +407,7 @@ Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
     newLight.position[2] = l_pos.z;
 
     // check if the ray is blocked, if so le = 0, else the color of the light
-    if (w_i_dot_object_n > 1e-8) le = shadowRayColor(shadow_ray, newLight);
+    if (w_i_dot_n > 1e-8) le = shadowRayColor(shadow_ray, newLight);
 
     float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
 
@@ -416,19 +416,17 @@ Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
     mc.w_i = w_i;
     mc.w_o = w_o;
     mc.albedo = albedo;
-    mc.light = light;
-    mc.n = object_n;
+    mc.n = n;
     mc.metallic = metallic;
     mc.roughness = roughness;
     mc.F0 = F0_vec3;
 
-    glm::vec3 brdf = calculateBRDF(mc);
-
-    glm::vec3 c = le * brdf * w_i_dot_object_n / pdf;
+    glm::vec3 c = le * calculateBRDF(mc) * w_i_dot_n / pdf;
     color += Color(c);
   }
 
-  color /= LIGHT_SAMPLES * 1.0f;
+  color /= random_ps.size() * 1.0f;
+  color = color / (color + vec3(1, 1, 1));
 
   return color;
 
@@ -436,11 +434,10 @@ Color calculateMonteCarlo(const GLM_Vertex &v, Light &light) {
 
 glm::vec3 calculateBRDF(const MonteCarlo &mc) {
 
-  glm::vec3 albedo = mc.albedo;
   glm::vec3 fd = calculateFD(mc);
   glm::vec3 fs = calculateFS(mc);
 
-  return (fs + fd) * albedo;
+  return (fs + fd) * mc.albedo;
 }
 
 glm::vec3 calculateFS(const MonteCarlo &mc) {
@@ -455,7 +452,7 @@ glm::vec3 calculateFS(const MonteCarlo &mc) {
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
 
-  return (F * G * D) / (4 * w_i_dot_n * w_o_dot_n);
+  return (F * G * D) / (4 * abs(w_i_dot_n) * abs(w_o_dot_n));
 }
 
 glm::vec3 calculateF(const MonteCarlo &mc) {
@@ -465,7 +462,7 @@ glm::vec3 calculateF(const MonteCarlo &mc) {
   float w_o_dot_h = glm::dot(mc.w_o, h);
 
   glm::vec3 one_sub_f0 = glm::vec3(1, 1, 1) - mc.F0;
-  float multi = pow((1 - w_o_dot_h), 5);
+  float multi = pow(1 - w_o_dot_h, 5);
   glm::vec3 multi_vec3 = glm::vec3(multi, multi, multi);
 
   glm::vec3 F = mc.F0 + one_sub_f0 * multi_vec3;
@@ -501,11 +498,11 @@ float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m) 
 }
 
 float positiveChar(float t) {
-  return t > 0.0f ? 1 : 0;
+  return t > 0.0f ? 1.0f : 0.0f;
 }
 
 float findAngleRad(const glm::vec3 &u, const glm::vec3 &v) {
-  return glm::acos( glm::dot(glm::normalize(u), glm::normalize(v)));
+  return glm::acos(glm::dot(glm::normalize(u), glm::normalize(v)));
 }
 
 glm::vec3 calculateFD(const MonteCarlo &mc) {
@@ -517,7 +514,7 @@ glm::vec3 calculateFD(const MonteCarlo &mc) {
 
   float F_D90 = 2 * pow(glm::dot(h, mc.w_i), 2) * mc.roughness + 0.5;
   float one_over_pi = 1.0f / M_PI;
-  float fd = one_over_pi * (1 + (F_D90 - 1) * (1 - pow(w_i_dot_n, 5))) * (1 + (F_D90 - 1) * (1 - pow(w_o_dot_n, 5))) * (1 - mc.metallic);
+  float fd = one_over_pi * (1 + (F_D90 - 1) * pow(1 - w_i_dot_n, 5)) * (1 + (F_D90 - 1) * pow(1 - w_o_dot_n, 5)) * (1 - mc.metallic);
   glm::vec3 fd_vec3 = glm::vec3(fd, fd, fd);
 
   return fd_vec3;
@@ -611,7 +608,7 @@ GLM_Vertex calcGLMVertex(Sphere &s, glm::vec3 &intersection) {
     vertex.position = intersection;
     vertex.roughness = s.roughness;
     vertex.metallic = s.metallic;
-    vertex.kd = vec3(s.color_diffuse);
+    vertex.kd = doubleToVec(s.color_diffuse);
     vertex.n = glm::normalize(intersection - vec3(s.position));
 
     return vertex;
@@ -621,25 +618,22 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
 {
 
   Color color;
-  // check out each light source
-  for (int i = 0; i < lights.size(); ++i)
+
+  GLM_Vertex v;
+  if (sphere_i != -1)
   {
+    Sphere &s = spheres[sphere_i];
+    v = calcGLMVertex(s, intersection);
+  }
+  else
+  {
+    Triangle &t = triangles[triangle_i];
+    v = calcGLMVertex(t, intersection);
+  }
 
-    // pick an area light
-    Light &light = lights[i];
-
-    // need to pick a light point of area light but for now we can just use pos
-    GLM_Vertex v;
-    if (sphere_i != -1)
-    {
-      Sphere &s = spheres[sphere_i];
-      v = calcGLMVertex(s, intersection);
-    }
-    else
-    {
-      Triangle &t = triangles[triangle_i];
-      v = calcGLMVertex(t, intersection);
-    }
+  // check out each light source
+  for (const Light &light : lights)
+  {
     color += calculateMonteCarlo(v, light);
   }
 
@@ -818,14 +812,13 @@ Color tracing(int x, int y)
   }
   generate_ray_antialiasing(rays, x, y, num_samples);
 
-  for (int i = 0; i < num_samples; ++i)
+  for (int i = 0; i < rays.size(); ++i)
   {
     // Color c(1.0f, 1.0f, 1.0f);
     color += check_intersection(rays[i], MAX_REFLECT);;
   }
 
-  color /= num_samples * 1.0f;
-  color = color / (color + vec3(1, 1, 1));
+  color /= rays.size() * 1.0f;
 
   return color;
 }

@@ -60,7 +60,7 @@ int mode = MODE_DISPLAY;
 
 #define MAX_REFLECT 3
 #define ANTI_ALIASING_SAMPLE 16
-#define LIGHT_SAMPLES 10
+#define LIGHT_SAMPLES 100
 
 #define ASERT(cond)                                                      \
   do {                                                                   \
@@ -90,8 +90,8 @@ int num_lights = 0;
 float e = 1e-4;
 float sigma = 1e-5;
 
-std::vector<glm::vec3> randomPointsInQuadrilateral(const Light &light);
-float calcLightArea(Light &light);
+std::vector<glm::vec3> randomPointsInQuadrilateral(const int light_samples);
+float calcLightArea(const Light &light);
 glm::vec3 calculateF(const MonteCarlo &mc);
 float calculateD(const MonteCarlo &mc, const glm::vec3 &m);
 float findAngleRad(const glm::vec3 &u, const glm::vec3 &v);
@@ -100,7 +100,7 @@ float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m);
 glm::vec3 calculateFD(const MonteCarlo &mc);
 glm::vec3 calculateFS(const MonteCarlo &mc);
 glm::vec3 calculateBRDF(const MonteCarlo &mc);
-Color calculateMonteCarlo(const GLM_Vertex &v, Light &light);
+Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light);
 glm::vec3 shadowRayColor(const Ray &shadow_ray, const Light &light);
 glm::vec2 findPixelTopLeftCorner(int x, int y);
 glm::vec3 maxPointTriangle(Triangle &t);

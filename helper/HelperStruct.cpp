@@ -1,5 +1,26 @@
 #include "HelperStruct.hpp"
 
+Light::Light() {}
+
+Light::Light(const Light &l) {
+
+    for (int i = 0; i < 3; ++i) {
+        normal[i] = l.normal[i];
+        color[i] = l.color[i];
+        position[i] = l.position[i];
+        p[0][i] = l.p[0][i];
+        p[1][i] = l.p[1][i];
+        p[2][i] = l.p[2][i];
+        p[3][i] = l.p[3][i];
+    }
+}
+
+void Light::print() {
+    std::cout << "Light: Position: " << position[0] << " " << position[1] << " " << position[2]
+    << " Color: " << color[0] << " " << color[1] << " " << color[2] << '\n';
+
+}
+
 Color::Color()
 {
     r = 0.0f;

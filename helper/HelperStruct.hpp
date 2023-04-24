@@ -24,6 +24,7 @@ struct GLM_Vertex
   glm::vec3 position;
   glm::vec3 kd;
   glm::vec3 n;
+  glm::vec3 l_pos;
   float roughness;
   float metallic;
 
@@ -55,6 +56,12 @@ struct Light
   double normal[3];
   double color[3];
   double p[4][3];
+  
+  Light();
+  Light(const Light &l);
+
+  void print();
+
 };
 
 struct MonteCarlo {
