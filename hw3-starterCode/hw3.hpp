@@ -56,10 +56,10 @@ int mode = MODE_DISPLAY;
 #define HEIGHT 480
 
 // the field of view of the camera
-#define fov 60.0
+#define fov 40.0
 
-#define MAX_REFLECT 3
-#define ANTI_ALIASING_SAMPLE 16
+#define MAX_REFLECT 0
+#define ANTI_ALIASING_SAMPLE 1
 #define LIGHT_SAMPLES 100
 
 #define ASERT(cond)                                                      \

@@ -327,18 +327,11 @@ std::vector<glm::vec3> randomPointsInQuadrilateral(const Light &light) {
   std::vector<glm::vec3> random_ps;
 
   for (int i = 0; i < LIGHT_SAMPLES; ++i) {
-    float r1 = distrib(eng);
-    float r2 = distrib(eng);
-    float r3 = distrib(eng);
+    float u1 = distrib(eng);
+    float u2 = distrib(eng);
+    float u3 = distrib(eng);
 
-    bool choose_triangle1 = r3 < (triangle_area1 / total_area);
-
-    glm::vec3 a, b, c;
-
-    if (choose_triangle1) a = p0, b = p1, c = p2;
-    else a = p0, b = p2, c = p3;
-
-    glm::vec3 p = (1 - sqrt(r1)) * a + (sqrt(r1) * (1 - r2)) * b + (sqrt(r1) * r2) * c;
+    glm::vec3 p = (1- u2) * (p0 * (1 - u3) + p1 * u3) + u2 * (p2 * (1 - u3) + p3 * u3);
     random_ps.push_back(p);
   }
 
@@ -398,10 +391,7 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light) {
 
     float w_i_dot_n = glm::dot(w_i, n);
 
-    Light newLight;
-    newLight.color[0] = light.color[0];
-    newLight.color[1] = light.color[1];
-    newLight.color[2] = light.color[2];
+    Light newLight = light;
     newLight.position[0] = l_pos.x;
     newLight.position[1] = l_pos.y;
     newLight.position[2] = l_pos.z;
@@ -644,30 +634,30 @@ Color calc_ray_color(int sphere_i, int triangle_i, glm::vec3 intersection, Ray &
 {
   Color c = calc_shadow_ray(sphere_i, triangle_i, intersection);
 
-  // if (time > 0)
-  // {
-  //   glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
-  //   Ray reflect_ray(r, intersection);
-  //   Color color;
-  //   Color reflect_color = check_intersection(reflect_ray, time - 1);
-  //   GLM_Vertex v;
+  if (time > 0)
+  {
+    glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
+    Ray reflect_ray(r, intersection);
+    Color color;
+    Color reflect_color = check_intersection(reflect_ray, time - 1);
+    GLM_Vertex v;
 
-  //   if (sphere_i != -1)
-  //   {
-  //     Sphere &s = spheres[sphere_i];
-  //     v = calcGLMVertex(s, intersection);
-  //   }
-  //   else
-  //   {
-  //     Triangle &t = triangles[triangle_i];
-  //     v = calcGLMVertex(t, intersection);
-  //   }
+    if (sphere_i != -1)
+    {
+      Sphere &s = spheres[sphere_i];
+      v = calcGLMVertex(s, intersection);
+    }
+    else
+    {
+      Triangle &t = triangles[triangle_i];
+      v = calcGLMVertex(t, intersection);
+    }
 
-  //   glm::vec3 F0_v3 = vec3(F0);
-  //   glm::vec3 one_F0 = vec3(1.0f, 1.0f, 1.0f) - F0_v3;
+    glm::vec3 F0_v3 = vec3(F0);
+    glm::vec3 one_F0 = vec3(1.0f, 1.0f, 1.0f) - F0_v3;
 
-  //   c = c * F0_v3 + reflect_color * one_F0;
-  // }
+    c = c * F0_v3 + reflect_color * one_F0;
+  }
 
   return c;
 }
