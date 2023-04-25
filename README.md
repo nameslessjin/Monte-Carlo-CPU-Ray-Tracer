@@ -21,8 +21,8 @@ In this assignment, we create a ray tracer that utilize backward ray casting fro
 
 ## Extra Credits Features
 1. Recursive Reflection                                                                     -   Y
-2. Good antialiasing                                                                        -   Y
-3. Soft shadows                                                                             -   Y
+2. Good antialiasing with stratified_sampling                                               -   Y
+3. Soft shadows with random sampling for each area light                                    -   Y
 4. Hierachical Bounding Volume with AABB                                                    -   Y
 5. Monte-Carlo Sampling                                                                     -   Y
 6. Multi-threading                                                                          -   Y
