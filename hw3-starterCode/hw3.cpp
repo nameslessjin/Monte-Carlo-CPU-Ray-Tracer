@@ -485,9 +485,9 @@ glm::vec3 calculateFS(const MonteCarlo &mc)
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
 
-  // if (clicked) {
-  //   std::cout << "calculateFS G: " << D << '\n';
-  // }
+  if (clicked) {
+    std::cout << "calculateFS w_i: " << glm::to_string(mc.w_i) << " w_o: " << glm::to_string(mc.w_o) << '\n';
+  }
 
   return (F * G * D) / (4 * abs(w_i_dot_n) * abs(w_o_dot_n));
 }
@@ -515,12 +515,14 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m)
   float alpha_sq = pow(alpha, 2);
   float pos = positiveChar(glm::dot(m, mc.n));
 
-  float theta_m = findAngleRad(m, mc.n);
+  float cos_uv = glm::dot(glm::normalize(m), glm::normalize(mc.n));
+  float sin_uv = glm::length(glm::cross(glm::normalize(m), glm::normalize(mc.n)));
+  float tangent = sin_uv / cos_uv;
 
-  float deno = M_PI * pow(glm::cos(theta_m), 4) * pow(alpha_sq + pow(glm::tan(theta_m), 2), 2);
+  float deno = M_PI * pow(cos_uv, 4) * pow(alpha_sq + pow(tangent, 2), 2);
 
   // if (clicked) {
-  //   std::cout << "calculateFS theta_m: " << theta_m << '\n';
+  //   std::cout << "calculateFS glm::normalize(m): " << glm::to_string(m) << '\n';
   // }
 
   return alpha_sq * pos / deno;
@@ -551,6 +553,7 @@ float findAngleRad(const glm::vec3 &u, const glm::vec3 &v)
   // if (clicked) {
   //   std::cout << "calculateFS theta_m: " << glm::dot(glm::normalize(u), glm::normalize(v)) << '\n';
   // }
+  float cos_uv = glm::dot(glm::normalize(u), glm::normalize(v));
   return glm::acos(glm::dot(glm::normalize(u), glm::normalize(v)) - e5);
 }
 
@@ -683,15 +686,17 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
   }
 
   // check out each light source
+  int i = 0;
   for (const Light &light : lights)
   {
     Color c = calculateMonteCarlo(v, light);
 
-    // if (clicked) {
-    //   std::cout << "calc_shadow_ray light sample: \n";
-    //   c.print();
-    // }
+    if (clicked) {
+      std::cout << "calc_shadow_ray light sample: " << i << '\n';
+      // c.print();
+    }
     color += c;
+    ++i;
   }
 
   // if (clicked) {
@@ -705,7 +710,7 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
 Color calc_ray_color(int sphere_i, int triangle_i, glm::vec3 intersection, Ray &ray, int time)
 {
   Color c = calc_shadow_ray(sphere_i, triangle_i, intersection);
-
+  
   if (time > 0)
   {
     glm::vec3 r = calc_reflect_dir(sphere_i, triangle_i, ray.dir, intersection);
@@ -975,12 +980,12 @@ void draw_scene()
   fill_image_plane();
 
 
-  // x: 445 y: 242
-  // clicked = true;
-  // draw_pixel_debug(403, 279);
+  // x: 444 y: 246
+  clicked = true;
+  draw_pixel_debug(444, 246);
   // float r = img[HEIGHT - 279][407][0], g = img[HEIGHT - 279][407][1], b = img[HEIGHT - 279][407][2];
   // std::cout << "draw_scene r: " << r << " g: " << g << " b: " << b << '\n';
-  // clicked = false;
+  clicked = false;
 
   glPointSize(2.0);
   glBegin(GL_POINTS);

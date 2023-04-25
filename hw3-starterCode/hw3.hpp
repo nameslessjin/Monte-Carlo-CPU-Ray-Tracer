@@ -60,7 +60,7 @@ int mode = MODE_DISPLAY;
 
 #define MAX_REFLECT 0
 #define ANTI_ALIASING_SAMPLE 16 // has to be a square number
-#define LIGHT_SAMPLES 100
+#define LIGHT_SAMPLES 49
 
 #define ASERT(cond)                                                      \
   do {                                                                   \
