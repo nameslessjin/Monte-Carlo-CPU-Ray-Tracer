@@ -446,17 +446,10 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light)
     glm::vec3 brdf = calculateBRDF(mc);
     glm::vec3 c = le * brdf * w_i_dot_n / pdf;
     Color cl = Color(c);
-    // if (clicked) {
-    //   std::cout << "calculateMonteCarlo light sample le: " << glm::to_string(brdf) << '\n';
-    // }
 
     color += cl;
   }
 
-  // if (clicked) {
-  //   std::cout << "calculateMonteCarlo: \n";
-  //   color.print();
-  // }
 
   color /= random_ps.size() * 1.0f;
 
@@ -468,10 +461,6 @@ glm::vec3 calculateBRDF(const MonteCarlo &mc)
 
   glm::vec3 fd = calculateFD(mc);
   glm::vec3 fs = calculateFS(mc);
-
-  // if (clicked) {
-  //   std::cout << "calculateBRDF fd: " << glm::to_string(fd) << '\n';
-  // }
 
   return (fs + fd) * mc.albedo;
 }
@@ -488,11 +477,6 @@ glm::vec3 calculateFS(const MonteCarlo &mc)
   glm::vec3 F = calculateF(mc);
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
-
-  // if (clicked) {
-  //   std::cout << "calculateFS h: " << glm::to_string(h) << '\n';
-  //   std::cout << "calculateFS w_i_dot_n: " << w_i_dot_n << '\n';
-  // }
 
   return (F * G * D) / (4 * abs(w_i_dot_n) * abs(w_o_dot_n));
 }
@@ -526,10 +510,6 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m)
 
   float deno = M_PI * pow(cos_uv, 4) * pow(alpha_sq + pow(tangent, 2), 2);
 
-  // if (clicked) {
-  //   std::cout << "calculateFS deno: " << deno << '\n';
-  // }
-
   return alpha_sq * pos / deno;
 }
 
@@ -545,8 +525,6 @@ float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m)
   float cos_uv = glm::dot(m, glm::normalize(v));
   float sin_uv = glm::length(glm::cross(m, glm::normalize(v)));
   float tangent = sin_uv / cos_uv;
-  // float theta_v = findAngleRad(v, mc.n);
-
   float denomenator = 1 + sqrt(1 + pow(alpha, 2) * pow(tangent, 2));
 
   return pos * 2 / denomenator;
@@ -559,10 +537,6 @@ float positiveChar(float t)
 
 float findAngleRad(const glm::vec3 &u, const glm::vec3 &v)
 {
-  // if (clicked) {
-  //   std::cout << "calculateFS theta_m: " << glm::dot(glm::normalize(u), glm::normalize(v)) << '\n';
-  // }
-  float cos_uv = glm::dot(glm::normalize(u), glm::normalize(v));
   return glm::acos(glm::dot(glm::normalize(u), glm::normalize(v)) - e5);
 }
 
@@ -699,19 +673,9 @@ Color calc_shadow_ray(int sphere_i, int triangle_i, glm::vec3 &intersection)
   for (const Light &light : lights)
   {
     Color c = calculateMonteCarlo(v, light);
-
-    if (clicked) {
-      std::cout << "calc_shadow_ray light sample: " << i << '\n';
-      // c.print();
-    }
     color += c;
     ++i;
   }
-
-  // if (clicked) {
-  //   std::cout << "calc_shadow_ray: \n";
-  //   color.print();
-  // }
 
   return color;
 }
@@ -861,11 +825,6 @@ Color check_intersection(Ray &ray, int time)
     triangle_i = -1;
   }
 
-  // if (clicked) {
-  //   std::cout << "intersection: \n";
-  //   color.print();
-  // }
-
   return color;
 }
 
@@ -911,17 +870,8 @@ Color tracing(int x, int y)
 
   for (int i = 0; i < rays.size(); ++i)
   {
-    // Color c(1.0f, 1.0f, 1.0f);
-    if (clicked)
-      std::cout << "tracing sample: " << i << '\n';
     color += check_intersection(rays[i], MAX_REFLECT);
-    ;
   }
-
-  // if (clicked) {
-  //   std::cout << "tracing: \n";
-  //   color.print();
-  // }
 
   color /= rays.size() * 1.0f;
 
@@ -949,11 +899,6 @@ void draw_pixel_debug(int x, int y)
   color += Color(vec3(ambient_light)); // add ambient light
 
   color = color / (color + vec3(1, 1, 1));
-
-  if (clicked) {
-    std::cout << "draw_pixel_debug: \n";
-    color.print();
-  }
 }
 
 void fill_image_plane()
@@ -987,14 +932,6 @@ void draw_scene()
 {
   contructHVB();
   fill_image_plane();
-
-
-  // x: 444 y: 246
-  clicked = true;
-  draw_pixel_debug(444, 246);
-  // float r = img[HEIGHT - 279][407][0], g = img[HEIGHT - 279][407][1], b = img[HEIGHT - 279][407][2];
-  // std::cout << "draw_scene r: " << r << " g: " << g << " b: " << b << '\n';
-  clicked = false;
 
   glPointSize(2.0);
   glBegin(GL_POINTS);
@@ -1039,8 +976,8 @@ void save_jpg()
 {
   printf("Saving JPEG file: %s\n", filename);
 
-  ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
-  if (img.save(filename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
+  ImageIO imgbuffer(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
+  if (imgbuffer.save(filename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
     printf("Error in Saving\n");
   else
     printf("File saved Successfully\n");
@@ -1231,17 +1168,17 @@ void mouseButtonFunc(int button, int state, int x, int y)
   {
   case GLUT_LEFT_BUTTON:
 
-    for (int i =- 1; i <= 1; ++i) {
-      for (int j = -1; j <= 1; ++j) {
-        int new_x = x + i, new_y = HEIGHT - y + j;
-        if (new_x >= 0 && new_x < WIDTH && new_y >=0 && new_y < HEIGHT) {
-          std::cout << "x: " << new_x << " y: " << new_y << '\n';
-          clicked = true;
-          draw_pixel_debug(x, HEIGHT - y);
-          clicked = false;
-        }
-      }
-    }
+    // for (int i =- 1; i <= 1; ++i) {
+    //   for (int j = -1; j <= 1; ++j) {
+    //     int new_x = x + i, new_y = HEIGHT - y + j;
+    //     if (new_x >= 0 && new_x < WIDTH && new_y >=0 && new_y < HEIGHT) {
+    //       std::cout << "x: " << new_x << " y: " << new_y << '\n';
+    //       clicked = true;
+    //       draw_pixel_debug(x, HEIGHT - y);
+    //       clicked = false;
+    //     }
+    //   }
+    // }
 
     break;
 

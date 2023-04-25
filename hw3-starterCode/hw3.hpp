@@ -58,7 +58,7 @@ int mode = MODE_DISPLAY;
 // the field of view of the camera
 #define fov 60.0
 
-#define MAX_REFLECT 0
+#define MAX_REFLECT 3
 #define ANTI_ALIASING_SAMPLE 16 // has to be a square number
 #define LIGHT_SAMPLES 100
 
