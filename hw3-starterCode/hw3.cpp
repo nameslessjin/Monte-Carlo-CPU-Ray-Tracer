@@ -936,10 +936,10 @@ void draw_pixel_debug(int x, int y)
 
   color = color / (color + vec3(1, 1, 1));
 
-  // if (clicked) {
-  //   std::cout << "draw_pixel_debug: \n";
-  //   color.print();
-  // }
+  if (clicked) {
+    std::cout << "draw_pixel_debug: \n";
+    color.print();
+  }
 }
 
 void fill_image_plane()
@@ -975,6 +975,7 @@ void draw_scene()
   fill_image_plane();
 
 
+  // x: 445 y: 242
   // clicked = true;
   // draw_pixel_debug(403, 279);
   // float r = img[HEIGHT - 279][407][0], g = img[HEIGHT - 279][407][1], b = img[HEIGHT - 279][407][2];
@@ -1216,8 +1217,17 @@ void mouseButtonFunc(int button, int state, int x, int y)
   {
   case GLUT_LEFT_BUTTON:
 
-    std::cout << "x: " << x << " y: " << HEIGHT - y << '\n';
-    draw_pixel_debug(x, HEIGHT - y);
+    for (int i =- 1; i <= 1; ++i) {
+      for (int j = -1; j <= 1; ++j) {
+        int new_x = x + i, new_y = HEIGHT - y + j;
+        if (new_x >= 0 && new_x < WIDTH && new_y >=0 && new_y < HEIGHT) {
+          std::cout << "x: " << new_x << " y: " << new_y << '\n';
+          clicked = true;
+          draw_pixel_debug(x, HEIGHT - y);
+          clicked = false;
+        }
+      }
+    }
 
     break;
 
