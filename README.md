@@ -1,7 +1,7 @@
 # CSCI 420 Programming Assignment 3: Ray Tracing - Monte Carlo Sampling
 
 Subject             : CSCI420 - Computer Graphics <br>
-Assignment 3        : Ray Tracing <br>
+Assignment 3        : Ray Tracing                 <br>
 Author              : Jinsen Wu                   <br>
 USC ID              : 9338292958                  <br>
 
@@ -28,4 +28,4 @@ In this assignment, we create a ray tracer that utilize backward ray casting fro
 6. Multi-threading                                                                          -   Y
 
 ## Note
-This program is for monte carlo sampling.  For the core phong shading, please check out the other program in the submission named "USC-CSCI420-HW3-core-credit".  I will submit a JPEG folders to contain still images from both programs.  The example of monte carlo sampling is also provided in JPEG folder under hw3-starterCode.
+This program is for monte carlo sampling.  For the core phong shading, please check out the other program in the submission named "USC-CSCI420-HW3-core-credit".  I will submit a JPEG folders to contain still images from both programs.  The example of monte carlo sampling is also provided in JPEG folder under hw3-starterCode.  If you want to run the code, you can use ./test2.sh, ./table.sh, ./snow-man.sh, ./4sphere.sh and ./siggraph.sh
