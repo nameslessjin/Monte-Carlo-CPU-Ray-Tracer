@@ -28,4 +28,6 @@ In this assignment, we create a ray tracer that utilize backward ray casting fro
 6. Multi-threading                                                                          -   Y
 
 ## Note
+Multithreading is used to improve rendering speed so progressive rendering is disabled.  The image will only be shown once the rendering
+progress is completed. <br>
 This program is for monte carlo sampling.  For the core phong shading, please check out the other program in the submission named "USC-CSCI420-HW3-core-credit".  I will submit a JPEG folders to contain still images from both programs.  The example of monte carlo sampling is also provided in JPEG folder under hw3-starterCode.  If you want to run the code, you can use ./test2.sh, ./table.sh, ./snow-man.sh, ./4sphere.sh and ./siggraph.sh
