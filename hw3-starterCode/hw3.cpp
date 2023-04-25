@@ -478,16 +478,17 @@ glm::vec3 calculateFS(const MonteCarlo &mc)
   float w_i_dot_n = glm::dot(mc.w_i, mc.n);
   float w_o_dot_n = glm::dot(mc.w_o, mc.n);
 
-  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+  glm::vec3 h = (abs(w_i_dot_n) < 1e-8 ? 1 : glm::sign(w_i_dot_n)) * glm::normalize(mc.w_i + mc.w_o);
   glm::vec3 one_sub_f0 = glm::vec3(1, 1, 1) - mc.F0;
 
   glm::vec3 F = calculateF(mc);
   float G = calculateG1(mc, mc.w_i, h) * calculateG1(mc, mc.w_o, h);
   float D = calculateD(mc, h);
 
-  if (clicked) {
-    std::cout << "calculateFS w_i: " << glm::to_string(mc.w_i) << " w_o: " << glm::to_string(mc.w_o) << '\n';
-  }
+  // if (clicked) {
+  //   std::cout << "calculateFS h: " << glm::to_string(h) << '\n';
+  //   std::cout << "calculateFS w_i_dot_n: " << w_i_dot_n << '\n';
+  // }
 
   return (F * G * D) / (4 * abs(w_i_dot_n) * abs(w_o_dot_n));
 }
@@ -496,7 +497,7 @@ glm::vec3 calculateF(const MonteCarlo &mc)
 {
 
   float w_i_dot_n = glm::dot(mc.w_i, mc.n);
-  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+  glm::vec3 h = (abs(w_i_dot_n) < 1e-8 ? 1 : glm::sign(w_i_dot_n)) * glm::normalize(mc.w_i + mc.w_o);
   float w_o_dot_h = glm::dot(mc.w_o, h);
 
   glm::vec3 one_sub_f0 = glm::vec3(1, 1, 1) - mc.F0;
@@ -515,15 +516,15 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m)
   float alpha_sq = pow(alpha, 2);
   float pos = positiveChar(glm::dot(m, mc.n));
 
-  float cos_uv = glm::dot(glm::normalize(m), glm::normalize(mc.n));
-  float sin_uv = glm::length(glm::cross(glm::normalize(m), glm::normalize(mc.n)));
+  float cos_uv = glm::dot(m, glm::normalize(mc.n));
+  float sin_uv = glm::length(glm::cross(m, glm::normalize(mc.n)));
   float tangent = sin_uv / cos_uv;
 
   float deno = M_PI * pow(cos_uv, 4) * pow(alpha_sq + pow(tangent, 2), 2);
 
-  // if (clicked) {
-  //   std::cout << "calculateFS glm::normalize(m): " << glm::to_string(m) << '\n';
-  // }
+  if (clicked) {
+    std::cout << "calculateFS deno: " << deno << '\n';
+  }
 
   return alpha_sq * pos / deno;
 }
@@ -536,9 +537,13 @@ float calculateG1(const MonteCarlo &mc, const glm::vec3 &v, const glm::vec3 &m)
   float alpha = pow(mc.roughness, 2);
 
   float pos = positiveChar(v_dot_m / v_dot_n);
-  float theta_v = findAngleRad(v, mc.n);
 
-  float denomenator = 1 + sqrt(1 + pow(alpha, 2) * pow(glm::tan(theta_v), 2));
+  float cos_uv = glm::dot(m, glm::normalize(v));
+  float sin_uv = glm::length(glm::cross(m, glm::normalize(v)));
+  float tangent = sin_uv / cos_uv;
+  // float theta_v = findAngleRad(v, mc.n);
+
+  float denomenator = 1 + sqrt(1 + pow(alpha, 2) * pow(tangent, 2));
 
   return pos * 2 / denomenator;
 }
@@ -563,7 +568,7 @@ glm::vec3 calculateFD(const MonteCarlo &mc)
   float w_i_dot_n = glm::dot(mc.w_i, mc.n);
   float w_o_dot_n = glm::dot(mc.w_o, mc.n);
 
-  glm::vec3 h = glm::sign(w_i_dot_n) * glm::normalize(mc.w_i + mc.w_o);
+  glm::vec3 h = (abs(w_i_dot_n) < 1e-8 ? 1 : glm::sign(w_i_dot_n)) * glm::normalize(mc.w_i + mc.w_o);
 
   float F_D90 = 2 * pow(glm::dot(h, mc.w_i), 2) * mc.roughness + 0.5;
   float one_over_pi = 1.0f / M_PI;
@@ -903,8 +908,8 @@ Color tracing(int x, int y)
   for (int i = 0; i < rays.size(); ++i)
   {
     // Color c(1.0f, 1.0f, 1.0f);
-    // if (clicked)
-    //   std::cout << "tracing sample: " << i << '\n';
+    if (clicked)
+      std::cout << "tracing sample: " << i << '\n';
     color += check_intersection(rays[i], MAX_REFLECT);
     ;
   }
