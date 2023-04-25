@@ -424,8 +424,12 @@ Color calculateMonteCarlo(const GLM_Vertex &v, const Light &light)
     newLight.position[2] = l_pos.z;
 
     // check if the ray is blocked, if so le = 0, else the color of the light
-    if (w_i_dot_n > e5)
-      le = shadowRayColor(shadow_ray, newLight);
+    if (w_i_dot_n <= 1e-8) {
+      continue;
+    }
+
+
+    le = shadowRayColor(shadow_ray, newLight);
 
     float pdf = pow(glm::length(intersection - l_pos), 2) / (abs(glm::dot(light_n, w_i)) * total_light_area);
 
@@ -466,7 +470,7 @@ glm::vec3 calculateBRDF(const MonteCarlo &mc)
   glm::vec3 fs = calculateFS(mc);
 
   // if (clicked) {
-  //   std::cout << "calculateBRDF fs: " << glm::to_string(fs) << '\n';
+  //   std::cout << "calculateBRDF fd: " << glm::to_string(fd) << '\n';
   // }
 
   return (fs + fd) * mc.albedo;
@@ -522,9 +526,9 @@ float calculateD(const MonteCarlo &mc, const glm::vec3 &m)
 
   float deno = M_PI * pow(cos_uv, 4) * pow(alpha_sq + pow(tangent, 2), 2);
 
-  if (clicked) {
-    std::cout << "calculateFS deno: " << deno << '\n';
-  }
+  // if (clicked) {
+  //   std::cout << "calculateFS deno: " << deno << '\n';
+  // }
 
   return alpha_sq * pos / deno;
 }
