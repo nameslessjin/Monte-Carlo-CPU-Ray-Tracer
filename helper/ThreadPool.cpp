@@ -10,29 +10,30 @@ ThreadPool::ThreadPool(size_t num_threads) : stop_flag(false), unfinished_tasks(
         // Each worker thread runs a lambda function that captures "this" pointer, allowing the lambda
         // to access the ThreadPool's members
         threads.emplace_back([this]
-                             {
-            // Keep processing tasks until the stop flag is set and the task queue is empty
-            while(true) {
+            {
+                // Keep processing tasks until the stop flag is set and the task queue is empty
+                while(true) {
 
-                // acquire lock on mutex, ensure thread safety when accessing task_queue and stop_flag
-                std::unique_lock<std::mutex> lock(mutex);
+                    // acquire lock on mutex, ensure thread safety when accessing task_queue and stop_flag
+                    std::unique_lock<std::mutex> lock(mutex);
 
-                // Wait for a task to be added to the queue or the stop flag to be set
-                // the worker thread will be blocked until either of these conditions is true
-                condition.wait(lock, [this] {return !task_queue.empty() || stop_flag;});
-                
-                // after the condition variable is signaled and the thread wakes up, the thread checks if the stop_flag is set and task_queue is empty
-                // If so, break the loop and exit the thread
-                if (stop_flag && task_queue.empty()) { return;}
+                    // Wait for a task to be added to the queue or the stop flag to be set
+                    // the worker thread will be blocked until either of these conditions is true
+                    condition.wait(lock, [this] {return !task_queue.empty() || stop_flag;});
+                    
+                    // after the condition variable is signaled and the thread wakes up, the thread checks if the stop_flag is set and task_queue is empty
+                    // If so, break the loop and exit the thread
+                    if (stop_flag && task_queue.empty()) { return;}
 
-                // If the worker thread continues, it retrieves the next task from the front of the task_queue and removes it from the queue
-                auto task = std::move(task_queue.front());
-                task_queue.pop();
+                    // If the worker thread continues, it retrieves the next task from the front of the task_queue and removes it from the queue
+                    auto task = std::move(task_queue.front());
+                    task_queue.pop();
 
-                // Unlock the mutex and run the task
-                lock.unlock();
-                task();
-            } });
+                    // Unlock the mutex and run the task
+                    lock.unlock();
+                    task();
+                } 
+            });
     }
 }
 
@@ -76,11 +77,12 @@ void ThreadPool::enqueue(F &&f, Args &&...args)
         // The lambda function executes the bound callable task(), acquires a lock on the mutex to ensure thread safety
         // Decrements the unifnished_tasks and notifies the finished_condition that a task has been completed
         task_queue.emplace([this, task = std::bind(std::forward<F>(f), std::forward<Args>(args)...)]()
-                           {
-            task();
-            std::unique_lock<std::mutex> lock(mutex);
-            --unfinished_tasks;
-            finished_condition.notify_one(); });
+            {
+                task();
+                std::unique_lock<std::mutex> lock(mutex);
+                --unfinished_tasks;
+                finished_condition.notify_one(); 
+            });
 
         // The unifhsed_tasks is incremented since a new task has been added to the queue
         ++unfinished_tasks;
@@ -102,8 +104,7 @@ void ThreadPool::wait()
     // THe predicate function captures the "this" pointer to access the task_queue and unfinished_tasks member variables of
     // the 'Threadpool' class
     std::unique_lock<std::mutex> lock(mutex);
-    finished_condition.wait(lock, [this]
-                            { return task_queue.empty() && unfinished_tasks == 0; });
+    finished_condition.wait(lock, [this] { return task_queue.empty() && unfinished_tasks == 0; });
 }
 
 // Explicitly instantiate enqueue for the supported types
