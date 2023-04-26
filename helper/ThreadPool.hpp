@@ -20,7 +20,7 @@ public:
     void wait();
 
 private:
-    std:: vector<std::thread> threads;
+    std::vector<std::thread> threads;
     std::queue<std::function<void()>> task_queue;
     std::mutex mutex;
     std::condition_variable condition;
