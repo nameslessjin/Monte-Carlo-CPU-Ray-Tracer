@@ -23,7 +23,7 @@ ThreadPool::ThreadPool(size_t num_threads) : stop_flag(false), unfinished_tasks(
                     
                     // after the condition variable is signaled and the thread wakes up, the thread checks if the stop_flag is set and task_queue is empty
                     // If so, break the loop and exit the thread
-                    if (stop_flag && task_queue.empty()) { return;}
+                    if (stop_flag && task_queue.empty()) {return;}
 
                     // If the worker thread continues, it retrieves the next task from the front of the task_queue and removes it from the queue
                     auto task = std::move(task_queue.front());
