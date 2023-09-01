@@ -247,8 +247,6 @@ std::pair<int, int> findBestPair(std::vector<AABB> &aabbs)
 
 std::vector<AABB> buildHVB(std::vector<AABB> &aabbs)
 {
-    // std::cout << aabbs.size() << '\n';
-    // for (AABB aabb: aabbs) aabb.print();
 
     if (aabbs.size() == 1 || aabbs.size() == 0) return aabbs;
 
@@ -277,19 +275,6 @@ std::vector<AABB> buildHVB(std::vector<AABB> &aabbs)
     if (aabbs.size() == 1) {
         parent_aabbs.push_back(aabbs[0]);
     }
-
-    // for (AABB parent: parent_aabbs) {
-    //     std::cout << "parent: \n";
-    //     parent.print();
-    //     if (parent.left) {
-    //         std::cout << "left: \n";
-    //         parent.left->print();
-    //     }
-    //     if (parent.right) {
-    //         std::cout << "right: \n";
-    //         parent.right->print();
-    //     }
-    // }
 
     return buildHVB(parent_aabbs);
 }

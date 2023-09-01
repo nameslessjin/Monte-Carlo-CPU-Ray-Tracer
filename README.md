@@ -6,7 +6,7 @@ Author              : Jinsen Wu                   <br>
 USC ID              : 9338292958                  <br>
 
 ## Introduction
-In this assignment, we create a ray tracer that utilize backward ray casting from camera.  We will shoot rays to the image panel on each pixels and trace the rays to their intersection with the cloest objects.  After we find the intersections, we will cast shadow ray to determine the color through phong shading and obsticle checking.  If the shadow ray is blocked by another object then the color will be black which becomes shadow else we use phong shading to find the correct color.
+In this assignment, we create a ray tracer that utilize backward ray casting from camera.  We will shoot rays to the image panel on each pixels and trace the rays to their intersection with the closet objects.  After we find the intersections, we will cast shadow ray to determine the color through phong shading and obstacle  checking.  If the shadow ray is blocked by another object then the color will be black which becomes shadow else we use phong shading to find the correct color.
 
 ## Core Credit Features
 1. Send out rays from the camera at (0, 0, 0).  Use backwards ray tracing on each pixel.    -   Y
@@ -23,7 +23,7 @@ In this assignment, we create a ray tracer that utilize backward ray casting fro
 1. Recursive Reflection                                                                     -   Y
 2. Good antialiasing with stratified_sampling                                               -   Y
 3. Soft shadows with random sampling for each area light                                    -   Y
-4. Hierachical Bounding Volume with AABB                                                    -   Y
+4. Hierarchical Bounding Volume with AABB                                                    -   Y
 5. Monte-Carlo Sampling                                                                     -   Y
 6. Multi-threading                                                                          -   Y
 

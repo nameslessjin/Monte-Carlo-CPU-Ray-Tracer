@@ -905,7 +905,6 @@ void fill_image_plane()
 {
   int num_threads = std::thread::hardware_concurrency();
   std::atomic<int> finished(0);
-  int cols_thread = WIDTH / num_threads;
   std::thread threads[num_threads];
 
   print_progress(finished, WIDTH * HEIGHT, mtx);
